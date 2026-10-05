@@ -1,6 +1,6 @@
 # SPEC 01 — Daily news digest by email
 
-> **Status:** Draft
+> **Status:** Approved
 > **Depends on:** none
 > **Date:** 2026-10-04
 > **Objective:** An n8n workflow that reads users, topics, feeds and settings from a Google Sheet, picks each user's latest news from RSS feeds, summarises them with local Ollama in the user's language and level, and sends one HTML email per user through Gmail.

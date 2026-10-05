@@ -1,0 +1,309 @@
+{
+  "id": "newsDigest0000001",
+  "name": "News Digest",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "settings-sheet-id",
+              "name": "sheetId",
+              "value": "<Google Sheet document ID>",
+              "type": "string"
+            },
+            {
+              "id": "settings-ollama-url",
+              "name": "ollamaUrl",
+              "value": "http://ollama:11434",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "settings",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Settings').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Config"
+        },
+        "options": {}
+      },
+      "id": "sheet-config",
+      "name": "Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decides whether the digest must be sent in this run.\n// The manual path always continues. The scheduled path continues only when the\n// current hour and weekday in America/Bogota match send_hour and send_days.\nconst config = {};\nfor (const row of $('Config').all()) {\n  const key = String(row.json.key ?? '').trim();\n  if (key) config[key] = String(row.json.value ?? '').trim();\n}\n\nconst manual = $('Manual Trigger').isExecuted;\n\nconst parts = new Intl.DateTimeFormat('en-US', {\n  timeZone: 'America/Bogota',\n  weekday: 'short',\n  hour: 'numeric',\n  hourCycle: 'h23',\n}).formatToParts(new Date());\nconst hour = Number(parts.find((p) => p.type === 'hour').value);\nconst weekday = parts.find((p) => p.type === 'weekday').value.toLowerCase();\n\nconst sendHour = Number(config.send_hour);\nconst sendDays = (config.send_days ?? '')\n  .toLowerCase()\n  .split(',')\n  .map((d) => d.trim())\n  .filter(Boolean);\n\nconst hourOk = config.send_hour !== undefined && config.send_hour !== '' && sendHour === hour;\nconst dayOk = sendDays.includes('all') || sendDays.includes(weekday);\n\nif (!manual && !(hourOk && dayOk)) {\n  return [];\n}\n\nreturn [{ json: { config, manual, hour, weekday } }];\n"
+      },
+      "id": "schedule-check",
+      "name": "Schedule Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Settings').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Users"
+        },
+        "options": {}
+      },
+      "id": "sheet-users",
+      "name": "Users",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Settings').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Topics"
+        },
+        "options": {}
+      },
+      "id": "sheet-topics",
+      "name": "Topics",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1100,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Settings').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Feeds"
+        },
+        "options": {}
+      },
+      "id": "sheet-feeds",
+      "name": "Feeds",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1320,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds, for each active user, the list of feeds that match their topics and\n// scope, and the list of distinct feed URLs to fetch once per run.\nconst norm = (v) => String(v ?? '').trim();\nconst lower = (v) => norm(v).toLowerCase();\nconst isTrue = (v) => norm(v).toUpperCase() === 'TRUE';\n\nconst feeds = $('Feeds')\n  .all()\n  .map((i) => i.json)\n  .filter((f) => norm(f.url) && isTrue(f.active))\n  .map((f) => ({\n    name: norm(f.name),\n    url: norm(f.url),\n    topic: lower(f.topic),\n    scope: lower(f.scope),\n    language: lower(f.language),\n  }));\n\nconst topicsByUser = {};\nfor (const { json: t } of $('Topics').all()) {\n  const email = lower(t.user_email);\n  const topic = lower(t.topic);\n  if (!email || !topic) continue;\n  topicsByUser[email] ??= [];\n  if (!topicsByUser[email].includes(topic)) topicsByUser[email].push(topic);\n}\n\nconst users = $('Users')\n  .all()\n  .map((i) => i.json)\n  .filter((u) => norm(u.email) && isTrue(u.active))\n  .map((u) => {\n    const email = norm(u.email);\n    const topics = topicsByUser[email.toLowerCase()] ?? [];\n    const scope = lower(u.scope);\n    const count = Math.trunc(Number(u.news_count));\n    return {\n      email,\n      name: norm(u.name),\n      language: lower(u.language) === 'es' ? 'es' : 'en',\n      level: norm(u.level).toUpperCase(),\n      scope,\n      newsCount: Math.min(15, Math.max(1, Number.isFinite(count) ? count : 1)),\n      topics,\n      feeds: feeds.filter(\n        (f) => topics.includes(f.topic) && (scope === 'both' || f.scope === scope),\n      ),\n    };\n  });\n\nconst feedUrls = [...new Set(users.flatMap((u) => u.feeds.map((f) => f.url)))];\n\nreturn [{ json: { users, feedUrls } }];\n"
+      },
+      "id": "build-plan",
+      "name": "Build Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Schedule Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Check": {
+      "main": [
+        [
+          {
+            "node": "Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Users": {
+      "main": [
+        [
+          {
+            "node": "Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Topics": {
+      "main": [
+        [
+          {
+            "node": "Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feeds": {
+      "main": [
+        [
+          {
+            "node": "Build Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  },
+  "pinData": {}
+}
