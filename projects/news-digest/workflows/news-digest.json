@@ -1,0 +1,859 @@
+{
+  "id": "newsDigest0000001",
+  "name": "News Digest",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "settings-sheet-id",
+              "name": "sheetId",
+              "value": "<Google Sheet document ID>",
+              "type": "string"
+            },
+            {
+              "id": "settings-ollama-url",
+              "name": "ollamaUrl",
+              "value": "http://ollama:11434",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "settings",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Settings').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "sheet-config",
+      "name": "Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decides whether the digest must be sent in this run.\n// The manual path always continues. The scheduled path continues only when the\n// current hour and weekday in America/Bogota match send_hour and send_days.\nconst config = {};\nfor (const row of $('Config').all()) {\n  const key = String(row.json.key ?? '').trim();\n  if (key) config[key] = String(row.json.value ?? '').trim();\n}\n\nconst manual = $('Manual Trigger').isExecuted;\n\nconst parts = new Intl.DateTimeFormat('en-US', {\n  timeZone: 'America/Bogota',\n  weekday: 'short',\n  hour: 'numeric',\n  hourCycle: 'h23',\n}).formatToParts(new Date());\nconst hour = Number(parts.find((p) => p.type === 'hour').value);\nconst weekday = parts.find((p) => p.type === 'weekday').value.toLowerCase();\n\nconst sendHour = Number(config.send_hour);\nconst sendDays = (config.send_days ?? '')\n  .toLowerCase()\n  .split(',')\n  .map((d) => d.trim())\n  .filter(Boolean);\n\nconst hourOk = config.send_hour !== undefined && config.send_hour !== '' && sendHour === hour;\nconst dayOk = sendDays.includes('all') || sendDays.includes(weekday);\n\nif (!manual && !(hourOk && dayOk)) {\n  return [];\n}\n\nreturn [{ json: { config, manual, hour, weekday } }];\n"
+      },
+      "id": "schedule-check",
+      "name": "Schedule Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Settings').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Users",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": []
+        },
+        "options": {}
+      },
+      "id": "sheet-users",
+      "name": "Users",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Settings').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Topics"
+        },
+        "options": {}
+      },
+      "id": "sheet-topics",
+      "name": "Topics",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1104,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Settings').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Feeds"
+        },
+        "options": {}
+      },
+      "id": "sheet-feeds",
+      "name": "Feeds",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1328,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds, for each active user, the list of feeds that match their topics and\n// scope, and the list of distinct feed URLs to fetch once per run.\nconst norm = (v) => String(v ?? '').trim();\nconst lower = (v) => norm(v).toLowerCase();\nconst isTrue = (v) => norm(v).toUpperCase() === 'TRUE';\n\nconst feeds = $('Feeds')\n  .all()\n  .map((i) => i.json)\n  .filter((f) => norm(f.url) && isTrue(f.active))\n  .map((f) => ({\n    name: norm(f.name),\n    url: norm(f.url),\n    topic: lower(f.topic),\n    scope: lower(f.scope),\n    language: lower(f.language),\n  }));\n\nconst topicsByUser = {};\nfor (const { json: t } of $('Topics').all()) {\n  const email = lower(t.user_email);\n  const topic = lower(t.topic);\n  if (!email || !topic) continue;\n  topicsByUser[email] ??= [];\n  if (!topicsByUser[email].includes(topic)) topicsByUser[email].push(topic);\n}\n\nconst users = $('Users')\n  .all()\n  .map((i) => i.json)\n  .filter((u) => norm(u.email) && isTrue(u.active))\n  .map((u) => {\n    const email = norm(u.email);\n    const topics = topicsByUser[email.toLowerCase()] ?? [];\n    const scope = lower(u.scope);\n    const count = Math.trunc(Number(u.news_count));\n    return {\n      email,\n      name: norm(u.name),\n      language: lower(u.language) === 'es' ? 'es' : 'en',\n      level: norm(u.level).toUpperCase(),\n      scope,\n      newsCount: Math.min(15, Math.max(1, Number.isFinite(count) ? count : 1)),\n      topics,\n      feeds: feeds.filter(\n        (f) => topics.includes(f.topic) && (scope === 'both' || f.scope === scope),\n      ),\n    };\n  });\n\nconst feedUrls = [...new Set(users.flatMap((u) => u.feeds.map((f) => f.url)))];\n\nreturn [{ json: { users, feedUrls } }];\n"
+      },
+      "id": "build-plan",
+      "name": "Build Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "feedUrls",
+        "options": {
+          "destinationFieldName": "url"
+        }
+      },
+      "id": "feed-urls",
+      "name": "Feed URLs",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "id": "fetch-feeds",
+      "name": "Fetch Feeds",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        1984,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Picks each user's articles from the fetched feeds: age filter, de-duplication\n// by link, and round-robin across the user's topics, newest first.\nconst norm = (v) => String(v ?? '').trim();\nconst stripHtml = (v) => norm(v).replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();\n\nconst { config } = $('Schedule Check').first().json;\nconst { users } = $('Build Plan').first().json;\nconst feedUrls = $('Feed URLs').all().map((i) => i.json.url);\n\nconst maxAgeHours = Number(config.max_article_age_hours);\nconst minTime = Date.now() - (maxAgeHours > 0 ? maxAgeHours : 24) * 3600 * 1000;\n\n// Each fetched item is linked to the feed URL it came from through pairedItem.\n// It is read from the Fetch Feeds output and not from $input, because n8n\n// renumbers pairedItem on the items a node receives.\n// A feed that failed arrives as a single item with only an `error` field.\nconst itemsByUrl = {};\nfor (const item of $('Fetch Feeds').all()) {\n  const paired = [item.pairedItem].flat()[0];\n  const url = feedUrls[typeof paired === 'number' ? paired : paired?.item];\n  const link = norm(item.json.link);\n  const time = Date.parse(item.json.isoDate ?? item.json.pubDate ?? '');\n  if (!url || !link || Number.isNaN(time) || time < minTime) continue;\n  itemsByUrl[url] ??= [];\n  itemsByUrl[url].push({\n    link,\n    time,\n    originalTitle: norm(item.json.title),\n    originalSnippet: stripHtml(item.json.contentSnippet ?? item.json.content),\n  });\n}\n\nreturn users.map(({ feeds, ...user }) => {\n  const seen = new Set();\n  const queues = user.topics.map((topic) =>\n    feeds\n      .filter((f) => f.topic === topic)\n      .flatMap((f) => (itemsByUrl[f.url] ?? []).map((a) => ({ ...a, topic, source: f.name })))\n      .sort((a, b) => b.time - a.time),\n  );\n\n  const articles = [];\n  while (articles.length < user.newsCount && queues.some((q) => q.length)) {\n    for (const queue of queues) {\n      if (articles.length >= user.newsCount) break;\n      let next = queue.shift();\n      while (next && seen.has(next.link)) next = queue.shift();\n      if (!next) continue;\n      seen.add(next.link);\n      articles.push({\n        topic: next.topic,\n        source: next.source,\n        link: next.link,\n        publishedAt: DateTime.fromMillis(next.time)\n          .setZone('America/Bogota')\n          .toISO({ suppressMilliseconds: true }),\n        originalTitle: next.originalTitle,\n        originalSnippet: next.originalSnippet,\n        title: next.originalTitle,\n        summary: next.originalSnippet,\n        aiOk: false,\n      });\n    }\n  }\n\n  return { json: { user, articles } };\n});\n"
+      },
+      "id": "select-articles",
+      "name": "Select Articles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2208,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds one Ollama request per selected article, in the user's language and level.\nconst { config } = $('Schedule Check').first().json;\nconst model = config.ollama_model || 'gemma4:12b';\n\nconst requests = [];\nfor (const { json } of $input.all()) {\n  const { user, articles } = json;\n  const level = ['B1', 'B2', 'C1'].includes(user.level) ? user.level : 'B2';\n  const target =\n    user.language === 'es'\n      ? 'Spanish'\n      : `English at CEFR level ${level}, with vocabulary and grammar that fit that level`;\n\n  articles.forEach((article, articleIndex) => {\n    const prompt = [\n      'You rewrite news items for a daily email digest.',\n      `Write in ${target}. If the news item is in another language, translate it.`,\n      'Use only the facts in the title and text given below. Do not add any detail that is not there.',\n      'Answer with JSON only, in this shape: {\"title\": \"...\", \"summary\": \"...\"}',\n      'The title is one short line. The summary is 2 or 3 sentences.',\n      '',\n      `Title: ${article.originalTitle}`,\n      `Text: ${article.originalSnippet}`,\n    ].join('\\n');\n\n    requests.push({\n      json: {\n        userEmail: user.email,\n        articleIndex,\n        request: { model, prompt, format: 'json', stream: false, think: false },\n      },\n    });\n  });\n}\n\nreturn requests;\n"
+      },
+      "id": "summary-prompts",
+      "name": "Summary Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "loop-articles",
+      "name": "Loop Over Articles",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        224,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.ollamaUrl }}/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "summarise",
+      "name": "Summarise",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        848
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Puts each Ollama answer back into its article. An article whose call failed or\n// returned invalid JSON keeps the original title and snippet, with aiOk = false.\nconst text = (v) => (typeof v === 'string' ? v.trim() : '');\n\n// The loop returns one result per request, in the same order.\nconst requests = $('Summary Prompts').all();\nconst results = $input.all();\nconst inOrder = results.length === requests.length;\n\nlet next = 0;\nreturn $('Select Articles')\n  .all()\n  .map(({ json }) => ({\n    json: {\n      user: json.user,\n      articles: json.articles.map((article) => {\n        const result = inOrder ? results[next].json : {};\n        next += 1;\n        let answer = {};\n        try {\n          answer = JSON.parse(result.response) ?? {};\n        } catch (error) {\n          // Failed call or invalid JSON: fall back below.\n        }\n        const title = text(answer.title);\n        const summary = text(answer.summary);\n        return title && summary ? { ...article, title, summary, aiOk: true } : article;\n      }),\n    },\n  }));\n"
+      },
+      "id": "apply-summaries",
+      "name": "Apply Summaries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1. Start\nRuns by hand or every hour. The hourly run continues only at the hour and days set in the `Config` tab.",
+        "height": 500,
+        "width": 860,
+        "color": 7
+      },
+      "id": "note-1",
+      "name": "Note Start",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. Read the sheet\nUsers, their topics and the list of feeds.",
+        "height": 500,
+        "width": 640,
+        "color": 4
+      },
+      "id": "note-2",
+      "name": "Note Sheet",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        832,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. Pick the news\nReads each feed once, then picks the newest articles for each user.",
+        "height": 500,
+        "width": 860,
+        "color": 5
+      },
+      "id": "note-3",
+      "name": "Note News",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4. Summarise with AI\nOllama rewrites one article at a time in the user's language and level. If a call fails, the original text stays.",
+        "height": 500,
+        "width": 860,
+        "color": 6
+      },
+      "id": "note-4",
+      "name": "Note Summaries",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds one item per user. Users who read in English get an Ollama request for\n// the vocabulary box, made from the summaries the AI wrote for them today.\nconst { config } = $('Schedule Check').first().json;\nconst model = config.ollama_model || 'gemma4:12b';\n\nreturn $input.all().map(({ json }) => {\n  const { user, articles } = json;\n  const summaries = articles.filter((a) => a.aiOk).map((a) => `- ${a.title}. ${a.summary}`);\n  const wantsVocabulary = user.language === 'en' && summaries.length > 0;\n  if (!wantsVocabulary) return { json: { userEmail: user.email, wantsVocabulary } };\n\n  const level = ['B1', 'B2', 'C1'].includes(user.level) ? user.level : 'B2';\n  const prompt = [\n    'You help a Spanish speaker who is learning English.',\n    `From the news summaries below, choose the 5 most difficult English words or expressions for a learner at CEFR level ${level}.`,\n    'Choose only words that appear in the summaries. Do not choose names of people, places or companies.',\n    'For each one, give its meaning in Spanish and one short example sentence in English.',\n    'Answer with JSON only, in this shape: {\"vocabulary\": [{\"word\": \"...\", \"meaning_es\": \"...\", \"example\": \"...\"}]}',\n    '',\n    'Summaries:',\n    ...summaries,\n  ].join('\\n');\n\n  return {\n    json: {\n      userEmail: user.email,\n      wantsVocabulary,\n      request: { model, prompt, format: 'json', stream: false, think: false },\n    },\n  };\n});\n"
+      },
+      "id": "vocabulary-prompts",
+      "name": "Vocabulary Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "loop-users",
+      "name": "Loop Over Users",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1104,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "wants-vocabulary",
+              "leftValue": "={{ $json.wantsVocabulary }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wants-vocabulary",
+      "name": "Wants Vocabulary?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.ollamaUrl }}/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "vocabulary",
+      "name": "Vocabulary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1552,
+        848
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Adds the vocabulary list to each user. It stays empty for users who read in\n// Spanish, and when the Ollama call failed or returned invalid JSON.\nconst text = (v) => (typeof v === 'string' ? v.trim() : '');\n\n// The loop returns one result per user, in the same order.\nconst requests = $('Vocabulary Prompts').all();\nconst results = $input.all();\nconst inOrder = results.length === requests.length;\n\nreturn $('Apply Summaries')\n  .all()\n  .map(({ json }, i) => {\n    let vocabulary = [];\n    if (inOrder && requests[i].json.wantsVocabulary) {\n      try {\n        const answer = JSON.parse(results[i].json.response) ?? {};\n        vocabulary = (Array.isArray(answer.vocabulary) ? answer.vocabulary : [])\n          .map((v) => ({\n            word: text(v?.word),\n            meaning_es: text(v?.meaning_es),\n            example: text(v?.example),\n          }))\n          .filter((v) => v.word && v.meaning_es && v.example)\n          .slice(0, 5);\n      } catch (error) {\n        // Failed call or invalid JSON: no vocabulary box.\n      }\n    }\n    return { json: { ...json, vocabulary } };\n  });\n"
+      },
+      "id": "apply-vocabulary",
+      "name": "Apply Vocabulary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5. Vocabulary\nFor users who read in English, Ollama picks 5 difficult words from today's summaries and gives their Spanish meaning. Other users skip the call.",
+        "height": 500,
+        "width": 1080,
+        "color": 3
+      },
+      "id": "note-5",
+      "name": "Note Vocabulary",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        832,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Renders one HTML email per user from their articles and vocabulary, with the\n// labels in the user's language. Styles are inline because Gmail drops <style>.\nconst LABELS = {\n  en: {\n    subject: 'Your news',\n    greeting: 'Hello',\n    intro: 'Here is your news for today.',\n    read: 'Read the original',\n    vocabulary: 'Vocabulary',\n    footer:\n      'The summaries are written by an AI from the title and the short text of each feed. Read the original for the full story.',\n    topics: {},\n  },\n  es: {\n    subject: 'Tus noticias',\n    greeting: 'Hola',\n    intro: 'Estas son tus noticias de hoy.',\n    read: 'Leer el original',\n    vocabulary: 'Vocabulario',\n    footer:\n      'Los resúmenes los escribe una IA a partir del título y el texto corto de cada fuente. Lee el original para ver la noticia completa.',\n    topics: {\n      technology: 'Tecnología',\n      politics: 'Política',\n      economy: 'Economía',\n      sports: 'Deportes',\n      health: 'Salud',\n      science: 'Ciencia',\n      culture: 'Cultura',\n    },\n  },\n};\n\nconst FONT = \"font-family:Arial,Helvetica,sans-serif;\";\nconst esc = (v) =>\n  String(v ?? '')\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;');\nconst safeLink = (v) => (/^https?:\\/\\//i.test(v) ? esc(v) : '#');\n\nconst today = DateTime.now().setZone('America/Bogota');\n\nreturn $input.all().map(({ json }) => {\n  const { user, articles, vocabulary } = json;\n  const t = LABELS[user.language] ?? LABELS.en;\n  const topicLabel = (topic) => t.topics[topic] ?? topic.charAt(0).toUpperCase() + topic.slice(1);\n  const when = (iso) =>\n    DateTime.fromISO(iso, { setZone: true }).setLocale(user.language).toFormat('d LLL, HH:mm');\n\n  const cards = articles\n    .map(\n      (a) => `\n        <tr><td style=\"padding:0 0 16px 0;\">\n          <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#ffffff;border:1px solid #e3e6ea;border-radius:8px;\">\n            <tr><td style=\"padding:18px 20px;${FONT}\">\n              <div style=\"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#1a5fb4;\">${esc(topicLabel(a.topic))}</div>\n              <div style=\"font-size:19px;line-height:25px;font-weight:bold;color:#1c2024;padding:6px 0 8px 0;\">${esc(a.title)}</div>\n              <div style=\"font-size:16px;line-height:24px;color:#3b4148;\">${esc(a.summary)}</div>\n              <div style=\"font-size:13px;line-height:20px;color:#6b7280;padding-top:12px;\">${esc(a.source)} · ${esc(when(a.publishedAt))}</div>\n              <div style=\"font-size:15px;line-height:22px;padding-top:4px;\"><a href=\"${safeLink(a.link)}\" style=\"color:#1a5fb4;font-weight:bold;text-decoration:underline;\">${t.read} →</a></div>\n            </td></tr>\n          </table>\n        </td></tr>`,\n    )\n    .join('');\n\n  const words = (vocabulary ?? [])\n    .map(\n      (v) => `\n              <div style=\"padding-top:12px;font-size:16px;line-height:23px;color:#1c2024;\"><b>${esc(v.word)}</b> — ${esc(v.meaning_es)}</div>\n              <div style=\"font-size:15px;line-height:22px;color:#5b5346;font-style:italic;\">${esc(v.example)}</div>`,\n    )\n    .join('');\n  const vocabularyBox = words\n    ? `\n        <tr><td style=\"padding:0 0 16px 0;\">\n          <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#fff8e6;border:1px solid #f0dca8;border-radius:8px;\">\n            <tr><td style=\"padding:18px 20px;${FONT}\">\n              <div style=\"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8a5a00;\">${t.vocabulary}</div>${words}\n            </td></tr>\n          </table>\n        </td></tr>`\n    : '';\n\n  const subject = `${t.subject} — ${today.toFormat('yyyy-MM-dd')}`;\n  const html = `<!DOCTYPE html>\n<html lang=\"${user.language}\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>${subject}</title></head>\n<body style=\"margin:0;padding:0;background:#f2f4f7;\">\n  <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f2f4f7;\">\n    <tr><td align=\"center\" style=\"padding:16px 12px;\">\n      <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;\">\n        <tr><td style=\"padding:8px 4px 20px 4px;${FONT}\">\n          <div style=\"font-size:26px;line-height:32px;font-weight:bold;color:#1c2024;\">${t.subject}</div>\n          <div style=\"font-size:14px;line-height:20px;color:#6b7280;\">${esc(today.setLocale(user.language).toFormat('DDDD'))}</div>\n          <div style=\"font-size:16px;line-height:24px;color:#3b4148;padding-top:12px;\">${t.greeting}${user.name ? ' ' + esc(user.name) : ''}. ${t.intro}</div>\n        </td></tr>${cards}${vocabularyBox}\n        <tr><td style=\"padding:4px 4px 16px 4px;${FONT}font-size:12px;line-height:18px;color:#6b7280;\">${t.footer}</td></tr>\n      </table>\n    </td></tr>\n  </table>\n</body>\n</html>`;\n\n  return { json: { email: user.email, subject, html, articleCount: articles.length } };\n});\n"
+      },
+      "id": "render-email",
+      "name": "Render Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 6. Email\nBuilds one HTML email per user, with the labels in the user's language, and sends it with Gmail. Users with no articles get no email.",
+        "height": 500,
+        "width": 640,
+        "color": 2
+      },
+      "id": "note-6",
+      "name": "Note Email",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1936,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-articles",
+              "leftValue": "={{ $json.articleCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "has-articles",
+      "name": "Has Articles?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        2208,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "send-email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2432,
+        640
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Schedule Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Check": {
+      "main": [
+        [
+          {
+            "node": "Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Users": {
+      "main": [
+        [
+          {
+            "node": "Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Topics": {
+      "main": [
+        [
+          {
+            "node": "Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feeds": {
+      "main": [
+        [
+          {
+            "node": "Build Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Plan": {
+      "main": [
+        [
+          {
+            "node": "Feed URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feed URLs": {
+      "main": [
+        [
+          {
+            "node": "Fetch Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Feeds": {
+      "main": [
+        [
+          {
+            "node": "Select Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Articles": {
+      "main": [
+        [
+          {
+            "node": "Summary Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary Prompts": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Articles": {
+      "main": [
+        [
+          {
+            "node": "Apply Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Summarise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarise": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Summaries": {
+      "main": [
+        [
+          {
+            "node": "Vocabulary Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vocabulary Prompts": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Users": {
+      "main": [
+        [
+          {
+            "node": "Apply Vocabulary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wants Vocabulary?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wants Vocabulary?": {
+      "main": [
+        [
+          {
+            "node": "Vocabulary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vocabulary": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Vocabulary": {
+      "main": [
+        [
+          {
+            "node": "Render Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Email": {
+      "main": [
+        [
+          {
+            "node": "Has Articles?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Articles?": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  },
+  "pinData": {}
+}

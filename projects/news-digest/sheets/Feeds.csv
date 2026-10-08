@@ -1,0 +1,15 @@
+name,url,topic,scope,language,active
+BBC Technology,https://feeds.bbci.co.uk/news/technology/rss.xml,technology,international,en,TRUE
+BBC Business,https://feeds.bbci.co.uk/news/business/rss.xml,economy,international,en,TRUE
+BBC World,https://feeds.bbci.co.uk/news/world/rss.xml,politics,international,en,TRUE
+El Tiempo Tecnosfera,https://www.eltiempo.com/rss/tecnosfera.xml,technology,national,es,TRUE
+El Tiempo Economía,https://www.eltiempo.com/rss/economia.xml,economy,national,es,TRUE
+El Tiempo Política,https://www.eltiempo.com/rss/politica.xml,politics,national,es,TRUE
+BBC Sport,https://feeds.bbci.co.uk/sport/rss.xml,sports,international,en,TRUE
+BBC Health,https://feeds.bbci.co.uk/news/health/rss.xml,health,international,en,TRUE
+BBC Science,https://feeds.bbci.co.uk/news/science_and_environment/rss.xml,science,international,en,TRUE
+BBC Culture,https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml,culture,international,en,TRUE
+El Tiempo Deportes,https://www.eltiempo.com/rss/deportes.xml,sports,national,es,TRUE
+El Tiempo Salud,https://www.eltiempo.com/rss/salud.xml,health,national,es,TRUE
+El Tiempo Ciencia,https://www.eltiempo.com/rss/vida_ciencia.xml,science,national,es,TRUE
+El Tiempo Cultura,https://www.eltiempo.com/rss/cultura.xml,culture,national,es,TRUE

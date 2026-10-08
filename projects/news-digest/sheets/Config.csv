@@ -1,0 +1,5 @@
+key,value
+send_hour,6
+send_days,all
+ollama_model,gemma4:12b
+max_article_age_hours,24

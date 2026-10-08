@@ -1,6 +1,6 @@
 # SPEC 01 — Daily news digest by email
 
-> **Status:** Draft
+> **Status:** Implemented
 > **Depends on:** none
 > **Date:** 2026-10-04
 > **Objective:** An n8n workflow that reads users, topics, feeds and settings from a Google Sheet, picks each user's latest news from RSS feeds, summarises them with local Ollama in the user's language and level, and sends one HTML email per user through Gmail.
@@ -22,7 +22,7 @@ The second goal is why the summaries are rewritten by an AI at a chosen level in
 - Per-user settings: language (`en` / `es`), English level (`B1` / `B2` / `C1`), scope (`national` / `international` / `both`), number of news.
 - Per-user topics, one row per topic in `Topics`.
 - News from a fixed list of RSS feeds in `Feeds`, each tagged with topic, scope and language.
-- Starter feeds for three topics (`technology`, `politics`, `economy`), one Colombian and one international each.
+- Starter feeds for seven topics (`technology`, `economy`, `politics`, `sports`, `health`, `science`, `culture`), one Colombian and one international each.
 - Global schedule from `Config`: `send_hour` and `send_days`, checked by an hourly trigger.
 - A Manual Trigger that skips the schedule check, for testing.
 - AI summary per article with local Ollama (`gemma4:12b`), written in the user's language and level, translating when the feed is in another language.
@@ -71,7 +71,7 @@ you@example.com,economy
 - `user_email` must match `Users.email`.
 - `topic` must match a value used in `Feeds.topic`.
 
-**Tab `Feeds`** — one row per RSS feed. All six URLs were checked on 2026-10-04 and returned valid RSS.
+**Tab `Feeds`** — one row per RSS feed. The first six URLs were checked on 2026-10-04 and the other eight on 2026-10-08. All returned valid RSS.
 
 ```csv
 name,url,topic,scope,language,active
@@ -81,10 +81,19 @@ BBC World,https://feeds.bbci.co.uk/news/world/rss.xml,politics,international,en,
 El Tiempo Tecnosfera,https://www.eltiempo.com/rss/tecnosfera.xml,technology,national,es,TRUE
 El Tiempo Economía,https://www.eltiempo.com/rss/economia.xml,economy,national,es,TRUE
 El Tiempo Política,https://www.eltiempo.com/rss/politica.xml,politics,national,es,TRUE
+BBC Sport,https://feeds.bbci.co.uk/sport/rss.xml,sports,international,en,TRUE
+BBC Health,https://feeds.bbci.co.uk/news/health/rss.xml,health,international,en,TRUE
+BBC Science,https://feeds.bbci.co.uk/news/science_and_environment/rss.xml,science,international,en,TRUE
+BBC Culture,https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml,culture,international,en,TRUE
+El Tiempo Deportes,https://www.eltiempo.com/rss/deportes.xml,sports,national,es,TRUE
+El Tiempo Salud,https://www.eltiempo.com/rss/salud.xml,health,national,es,TRUE
+El Tiempo Ciencia,https://www.eltiempo.com/rss/vida_ciencia.xml,science,national,es,TRUE
+El Tiempo Cultura,https://www.eltiempo.com/rss/cultura.xml,culture,national,es,TRUE
 ```
 
 - `scope`: `national` (Colombia) or `international`.
 - `name` is shown in the email as the source.
+- In emails in Spanish, the seven starter topics are shown translated. Any other topic is shown as typed in the sheet.
 
 **Tab `Config`** — key/value pairs.
 
@@ -125,7 +134,7 @@ max_article_age_hours,24
 }
 ```
 
-**Ollama responses** — requested with `format: "json"` and `stream: false` on `POST /api/generate`:
+**Ollama responses** — requested with `format: "json"`, `stream: false` and `think: false` on `POST /api/generate`:
 
 ```json
 { "title": "...", "summary": "2-3 sentences" }
@@ -158,22 +167,22 @@ Conventions:
 
 ## Acceptance criteria
 
-- [ ] `projects/news-digest/sheets/` contains the four CSV files, and their headers match the Data model exactly.
-- [ ] `docker exec n8n n8n import:workflow --input=<file>` imports `projects/news-digest/workflows/news-digest.json` without errors.
-- [ ] A manual run sends one email to each user with `active` = `TRUE` and none to users with `FALSE`.
-- [ ] The email contains at most `news_count` articles, and no link appears twice.
-- [ ] Every article shows topic, title, summary, source name and a working link to the original.
-- [ ] For a user with `language` = `en`, all summaries are in English, including those from El Tiempo feeds.
-- [ ] For a user with `language` = `es`, all summaries and all email labels are in Spanish, and there is no vocabulary box.
-- [ ] For a user with `language` = `en`, the email ends with a vocabulary box of 5 words with Spanish meanings.
-- [ ] A user with `scope` = `national` receives only articles from feeds with `scope` = `national`.
-- [ ] A user receives only articles whose feed topic is in their `Topics` rows.
-- [ ] Changing `send_hour` in `Config` changes the hour of the next scheduled email without editing the workflow.
-- [ ] With `send_days` = `mon`, a scheduled run on any other day sends nothing.
-- [ ] With one feed URL replaced by an invalid URL, the run still finishes and the email is sent with the other feeds.
-- [ ] With the `ollama` container stopped, the email is still sent with original titles and snippets, and without a vocabulary box.
-- [ ] A user whose topics return zero fresh articles receives no email, and the run does not fail.
-- [ ] The email renders as a single readable column in Gmail web and in the Gmail mobile app.
+- [X] `projects/news-digest/sheets/` contains the four CSV files, and their headers match the Data model exactly.
+- [X] `docker exec n8n n8n import:workflow --input=<file>` imports `projects/news-digest/workflows/news-digest.json` without errors.
+- [X] A manual run sends one email to each user with `active` = `TRUE` and none to users with `FALSE`.
+- [X] The email contains at most `news_count` articles, and no link appears twice.
+- [X] Every article shows topic, title, summary, source name and a working link to the original.
+- [X] For a user with `language` = `en`, all summaries are in English, including those from El Tiempo feeds.
+- [X] For a user with `language` = `es`, all summaries and all email labels are in Spanish, and there is no vocabulary box.
+- [X] For a user with `language` = `en`, the email ends with a vocabulary box of 5 words with Spanish meanings.
+- [X] A user with `scope` = `national` receives only articles from feeds with `scope` = `national`.
+- [X] A user receives only articles whose feed topic is in their `Topics` rows.
+- [X] Changing `send_hour` in `Config` changes the hour of the next scheduled email without editing the workflow.
+- [X] With `send_days` = `mon`, a scheduled run on any other day sends nothing.
+- [X] With one feed URL replaced by an invalid URL, the run still finishes and the email is sent with the other feeds.
+- [X] With the `ollama` container stopped, the email is still sent with original titles and snippets, and without a vocabulary box.
+- [X] A user whose topics return zero fresh articles receives no email, and the run does not fail.
+- [X] The email renders as a single readable column in Gmail web and in the Gmail mobile app.
 
 ## Decisions
 
@@ -188,6 +197,7 @@ Conventions:
 - **No:** cloud LLM. Better quality, but costs money and needs a key.
 - **Yes:** one Ollama call per article. A failure degrades one article only.
 - **No:** one call per user with all articles. Fewer calls, but a single failure would lose the whole email's summaries.
+- **Yes:** `think: false` on every Ollama call. `gemma4:12b` thinks by default, and on CPU that took about 125 s per article against about 25 s without it, with no visible loss in the summary.
 - **Yes:** `level` column. Summaries written at B2 are the reason the app helps with English practice.
 - **Yes:** vocabulary box only for `language` = `en`. Spanish meanings are useless to a Spanish-language reader.
 - **Yes:** hourly trigger plus `send_hour` and `send_days` in `Config`. The Schedule Trigger cannot read its time from a sheet.
