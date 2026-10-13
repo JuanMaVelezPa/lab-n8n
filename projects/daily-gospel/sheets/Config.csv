@@ -1,0 +1,7 @@
+key,value
+send_hour,5
+send_days,all
+ollama_model,gemma4:12b
+languages,"en,es,both"
+levels,"B1,B2,C1"
+audiences,"general,men,women"
