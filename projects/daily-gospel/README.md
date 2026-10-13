@@ -1,20 +1,22 @@
 # Daily gospel
 
 A daily email with the Catholic gospel of the day and a short reflection written with local Ollama.
-Recipients and settings live in a Google Sheet. The full design is in [SPEC 02](../../specs/02-daily-gospel-email.md).
+On the days the passage is hard to understand, it also has a two-line apologetic note.
+Recipients and settings live in a Google Sheet. The full design is in [SPEC 02](../../specs/02-daily-gospel-email.md) and [SPEC 03](../../specs/03-gospel-apologetic-note.md).
 
 ## How it works
 
-The workflow has six groups of nodes, marked with sticky notes:
+The workflow has seven groups of nodes, marked with sticky notes:
 
 1. **Start.** It runs by hand or every hour. The hourly run continues only at the hour and days set in the `Config` tab.
 2. **Read the sheet.** Each active row of `Users` is one configuration with its addresses. The workflow lists the reflections it needs: one per distinct language, level and audience.
 3. **Gospel of the day.** The text, the reference and the liturgical day come from the [Evangelizo](https://evangelizo.org) feed, in English and Spanish.
-4. **Reflection with AI.** Ollama writes three questions and answers about the passage, an application with one action for today, a short prayer, a question and a phrase to remember. It receives only the text of the day.
-5. **Vocabulary.** For English, Ollama picks 5 difficult words from the gospel and the reflection and gives their Spanish meaning.
-6. **Email.** One HTML email per row, sent with Gmail to the sending account, with the addresses of the row in BCC.
+4. **Apologetic note.** Ollama decides, once per language, whether the passage has a custom, an image, an expression or a saying that a modern reader would misread. Only then it writes two lines: the context and the meaning. The email shows them after the gospel text, under `Apologetic note` or `Nota apologética`.
+5. **Reflection with AI.** Ollama writes three questions and answers about the passage, an application with one action for today, a short prayer, a question and a phrase to remember. It receives only the text of the day and, when there is one, the apologetic note.
+6. **Vocabulary.** For English, Ollama picks 5 difficult words from the gospel and the reflection and gives their Spanish meaning.
+7. **Email.** One HTML email per row, sent with Gmail to the sending account, with the addresses of the row in BCC.
 
-The gospel text is never written by the AI. The footer of the email says that the reflection is AI-written and is not church teaching.
+The gospel text is never written by the AI. The footer of the email says that the note and the reflection are AI-written and are not church teaching.
 
 ## Setup
 
@@ -73,7 +75,7 @@ Importing again replaces the workflow in n8n with the file. The sheet ID and the
 ### 4. Test and activate
 
 1. Click **Execute workflow**. The manual run skips the schedule check and sends the emails now.
-2. Wait for it to finish. On CPU, Ollama needs 3 to 4 minutes per reflection and about 2 minutes per vocabulary box. A row with `both` takes about 7 minutes.
+2. Wait for it to finish. On CPU, Ollama needs about 1 minute per apologetic note, 3 to 4 minutes per reflection and about 2 minutes per vocabulary box. A row with `both` takes about 9 minutes.
 3. When the email looks right, click **Publish** (the **Active** switch in older n8n versions). From then on the workflow wakes up every hour and sends only at the hour and days set in `Config`.
 
 If a row gets no email, open the last run in **Executions** and look at `Build Plan`. It shows the recipients and the variants of each row, the rows it skipped, and the allowed values it read from `Config`.
@@ -124,6 +126,22 @@ A new level or audience is given to the AI as it is typed. Use a clear word.
 
 If a key is missing or its value is empty, the template list is used.
 
+### Turn the apologetic note on or off
+
+Edit the `Config` tab:
+
+| Key | Allowed values |
+| --- | --- |
+| `apologetics` | `on` or `off`. With `off`, the note is not written and no email shows it. |
+
+If the key is missing, or has any other value, it counts as `on`.
+
+With `on`, the AI still decides each day. A clear passage gets no note, and the email has no `Apologetic note` section that day.
+The note is the same for every row of a language. In English it is always written in simple English, for all levels.
+In an email with `both`, one block can have the note and the other not, because each language decides on its own.
+
+To see the decision of a day, open the run in **Executions** and look at `Apply Apologetics`. It shows `needed` and `ok` for each language.
+
 ### Change the schedule
 
 Edit the `Config` tab:
@@ -141,6 +159,7 @@ The change applies from the next hour. The email arrives some minutes after `sen
 | What fails | What happens |
 | --- | --- |
 | Ollama, or one reflection | The rows of that variant get the gospel alone, with no reflection and no vocabulary. |
+| The apologetic note call | The email has no `Apologetic note` section. The reflection is written without it. |
 | The vocabulary call | The email has the reflection and no vocabulary box. |
 | The gospel feed in one language | A row with `both` gets the block of the other language. A row with only that language gets no email. |
 | The gospel feed in both languages | No email that day. Run the workflow by hand later. |
