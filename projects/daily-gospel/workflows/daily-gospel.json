@@ -1,0 +1,884 @@
+{
+  "id": "dailyGospel000001",
+  "name": "Daily Gospel",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "settings-sheet-id",
+              "name": "sheetId",
+              "value": "<Google Sheet document ID>",
+              "type": "string"
+            },
+            {
+              "id": "settings-ollama-url",
+              "name": "ollamaUrl",
+              "value": "http://ollama:11434",
+              "type": "string"
+            },
+            {
+              "id": "settings-gospel-feed-url",
+              "name": "gospelFeedUrl",
+              "value": "https://feed.evangelizo.org/v2/reader.php",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "settings",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Settings').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Config",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "sheet-config",
+      "name": "Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Settings').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Users",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "sheet-users",
+      "name": "Users",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        0
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decides whether the email must be sent in this run.\n// The manual path always continues. The scheduled path continues only when the\n// current hour and weekday in America/Bogota match send_hour and send_days.\nconst config = {};\nfor (const row of $('Config').all()) {\n  const key = String(row.json.key ?? '').trim();\n  if (key) config[key] = String(row.json.value ?? '').trim();\n}\n\nconst manual = $('Manual Trigger').isExecuted;\n\nconst parts = new Intl.DateTimeFormat('en-US', {\n  timeZone: 'America/Bogota',\n  weekday: 'short',\n  hour: 'numeric',\n  hourCycle: 'h23',\n}).formatToParts(new Date());\nconst hour = Number(parts.find((p) => p.type === 'hour').value);\nconst weekday = parts.find((p) => p.type === 'weekday').value.toLowerCase();\n\nconst sendHour = Number(config.send_hour);\nconst sendDays = (config.send_days ?? '')\n  .toLowerCase()\n  .split(',')\n  .map((d) => d.trim())\n  .filter(Boolean);\n\nconst hourOk = config.send_hour !== undefined && config.send_hour !== '' && sendHour === hour;\nconst dayOk = sendDays.includes('all') || sendDays.includes(weekday);\n\nif (!manual && !(hourOk && dayOk)) {\n  return [];\n}\n\nreturn [{ json: { config, manual, hour, weekday } }];\n"
+      },
+      "id": "schedule-check",
+      "name": "Schedule Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds the plan of the run from the active rows of Users: the cleaned\n// recipient list of each row, the languages to fetch and the distinct variants\n// (language, level, audience) that need a reflection.\nconst norm = (v) => String(v ?? '').trim();\nconst lower = (v) => norm(v).toLowerCase();\nconst isTrue = (v) => norm(v).toUpperCase() === 'TRUE';\n\n// Allowed values come from Config. A missing or empty list falls back to the\n// default. Languages can only be restricted: each one needs its feed code and\n// labels in the workflow.\nconst config = $('Schedule Check').first().json.config;\nconst list = (key, fallback, fix) => {\n  const values = norm(config[key]).split(',').map((v) => fix(v.trim())).filter(Boolean);\n  return values.length ? [...new Set(values)] : fallback;\n};\nconst lowerCase = (v) => v.toLowerCase();\nconst KNOWN_LANGUAGES = ['en', 'es', 'both'];\nconst LANGUAGES = list('languages', KNOWN_LANGUAGES, lowerCase).filter((l) => KNOWN_LANGUAGES.includes(l));\nconst LEVELS = list('levels', ['B1', 'B2', 'C1'], (v) => v.toUpperCase());\nconst AUDIENCES = list('audiences', ['general', 'men', 'women'], lowerCase);\n\nconst rows = [];\nconst skipped = [];\nconst variantsByKey = {};\n\nfor (const { json: u } of $('Users').all()) {\n  if (!isTrue(u.active)) continue;\n\n  const language = lower(u.language);\n  const audience = lower(u.audience);\n  const needsEn = language === 'en' || language === 'both';\n  const needsEs = language === 'es' || language === 'both';\n  const level = needsEn ? norm(u.level).toUpperCase() : '-';\n\n  // A value outside the Config lists matches nothing: the row is left out and listed here.\n  if (\n    !LANGUAGES.includes(language) ||\n    !AUDIENCES.includes(audience) ||\n    (needsEn && !LEVELS.includes(level))\n  ) {\n    skipped.push({ rowNumber: u.row_number, language, level, audience });\n    continue;\n  }\n\n  const recipients = [\n    ...new Set(\n      norm(u.emails)\n        .split(',')\n        .map((e) => e.trim().toLowerCase())\n        .filter((e) => e && e.includes('@')),\n    ),\n  ];\n\n  const variantKeys = [];\n  if (needsEn) variantKeys.push(`en|${level}|${audience}`);\n  if (needsEs) variantKeys.push(`es|-|${audience}`);\n\n  // Rows with no valid address send nothing, so they ask for no reflection.\n  if (recipients.length) {\n    for (const key of variantKeys) {\n      const [lang, lvl, aud] = key.split('|');\n      variantsByKey[key] ??= { key, language: lang, level: lvl, audience: aud };\n    }\n  }\n\n  rows.push({ rowNumber: u.row_number, language, level, audience, recipients, variantKeys });\n}\n\nconst variants = Object.values(variantsByKey);\nconst languages = ['en', 'es'].filter((l) => variants.some((v) => v.language === l));\n\nreturn [{ json: { rows, languages, variants, skipped, allowed: { languages: LANGUAGES, levels: LEVELS, audiences: AUDIENCES } } }];\n"
+      },
+      "id": "build-plan",
+      "name": "Build Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One Evangelizo request per needed language and per part of the gospel:\n// text, short reference and liturgical day. The date is today in America/Bogota.\nconst { languages } = $('Build Plan').first().json;\n\nconst date = new Intl.DateTimeFormat('en-CA', {\n  timeZone: 'America/Bogota',\n  year: 'numeric',\n  month: '2-digit',\n  day: '2-digit',\n})\n  .format(new Date())\n  .replaceAll('-', '');\n\nconst FEED_LANG = { en: 'AM', es: 'SP' };\nconst PARTS = [\n  { part: 'text', type: 'reading', content: 'GSP' },\n  { part: 'reference', type: 'reading_st', content: 'GSP' },\n  { part: 'liturgicalDay', type: 'liturgic_t' },\n];\n\nreturn languages.flatMap((language) =>\n  PARTS.map(({ part, type, content }) => ({\n    json: {\n      language,\n      part,\n      query: { date, lang: FEED_LANG[language], type, ...(content ? { content } : {}) },\n    },\n  })),\n);\n"
+      },
+      "id": "gospel-requests",
+      "name": "Gospel Requests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Settings').first().json.gospelFeedUrl }}",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify($json.query) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "fetch-gospel",
+      "name": "Fetch Gospel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds one Gospel object per language from the Evangelizo answers, which are\n// HTML fragments. A failed text call or an empty text gives ok = false.\nconst ENTITIES = {\n  amp: '&', lt: '<', gt: '>', quot: '\"', apos: \"'\", nbsp: ' ',\n  aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú',\n  Aacute: 'Á', Eacute: 'É', Iacute: 'Í', Oacute: 'Ó', Uacute: 'Ú',\n  ntilde: 'ñ', Ntilde: 'Ñ', uuml: 'ü', Uuml: 'Ü', iexcl: '¡', iquest: '¿',\n  laquo: '«', raquo: '»', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”',\n  ndash: '–', mdash: '—', hellip: '…', copy: '©',\n};\nconst decode = (s) =>\n  s.replace(/&(#x[0-9a-f]+|#\\d+|[a-z]+);/gi, (match, code) => {\n    if (code[0] !== '#') return ENTITIES[code] ?? match;\n    const point = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : Number(code.slice(1));\n    return Number.isInteger(point) && point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : match;\n  });\n\n// Tags out, entities decoded, runs of spaces collapsed.\nconst clean = (html) => decode(html.replace(/<[^>]*>/g, '')).replace(/\\s+/g, ' ').trim();\n// One cleaned line per <br />, empty lines dropped.\nconst lines = (html) => html.split(/<br\\s*\\/?>/i).map(clean).filter(Boolean);\n\n// The HTTP node returns one result per request, in the same order.\nconst requests = $('Gospel Requests').all();\nconst results = $input.all();\nconst inOrder = results.length === requests.length;\n\nconst raw = {};\nrequests.forEach(({ json: request }, i) => {\n  const result = inOrder ? results[i].json : {};\n  const body = !result.error && typeof result.data === 'string' ? result.data : '';\n  (raw[request.language] ??= {})[request.part] = body;\n});\n\nconst gospels = {};\nfor (const [language, parts] of Object.entries(raw)) {\n  // The gospel ends at the first double <br />. The copyright line and the\n  // subscription line come after it.\n  const [reading, ...rest] = parts.text.split(/<br\\s*\\/?>\\s*<br\\s*\\/?>/i);\n  const text = lines(reading).join('\\n');\n  const attribution = lines(rest.join('<br />'))[0] ?? '';\n\n  gospels[language] = {\n    language,\n    liturgicalDay: clean(parts.liturgicalDay),\n    reference: clean(parts.reference).replace(/\\.$/, ''),\n    text,\n    attribution,\n    ok: text !== '',\n  };\n}\n\nreturn [{ json: { date: requests[0]?.json.query.date ?? '', gospels } }];\n"
+      },
+      "id": "build-gospels",
+      "name": "Build Gospels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. Gospel of the day\nAsks Evangelizo for the text, the reference and the liturgical day in each language, then cleans the HTML.",
+        "height": 500,
+        "width": 640,
+        "color": 5
+      },
+      "id": "note-3",
+      "name": "Note Gospel",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds one Ollama request per variant (language, level, audience), from the\n// gospel text of that language. A variant whose gospel is not ok gets no request.\nconst { config } = $('Schedule Check').first().json;\nconst model = config.ollama_model || 'gemma4:12b';\nconst { variants } = $('Build Plan').first().json;\nconst { gospels } = $('Build Gospels').first().json;\n\nconst AUDIENCES = {\n  general: 'adults of any age and walk of life',\n  men: 'men: speak to their life as sons, brothers, friends, husbands, fathers and workers',\n  women: 'women: speak to their life as daughters, sisters, friends, wives, mothers and workers',\n};\n\n// The schema makes Ollama write the answer in this exact shape.\nconst string = { type: 'string' };\nconst format = {\n  type: 'object',\n  properties: {\n    dialogue: {\n      type: 'array',\n      minItems: 3,\n      maxItems: 3,\n      items: {\n        type: 'object',\n        properties: { question: string, answer: string },\n        required: ['question', 'answer'],\n      },\n    },\n    application: string,\n    action: string,\n    prayer: string,\n    reflection_question: string,\n    phrase: string,\n  },\n  required: ['dialogue', 'application', 'action', 'prayer', 'reflection_question', 'phrase'],\n};\n\nreturn variants.map((variant) => {\n  const gospel = gospels[variant.language];\n  const wantsReflection = Boolean(gospel?.ok);\n  if (!wantsReflection) return { json: { variant, wantsReflection } };\n\n  const target =\n    variant.language === 'es'\n      ? 'Spanish, in the plain and warm Spanish of Latin America'\n      : `English at CEFR level ${variant.level}, with vocabulary and grammar that fit that level`;\n  const audience = AUDIENCES[variant.audience] ?? variant.audience;\n\n  const prompt = [\n    'You write a short reflection on the Catholic gospel of the day for a daily email.',\n    'It helps ordinary people understand the passage in an easy way and apply it to real life today.',\n    `Write every field in ${target}.`,\n    `The readers are ${audience}.`,\n    '',\n    'Form:',\n    '- \"dialogue\": exactly 3 question-and-answer pairs about this passage. Each question is one an honest reader would ask after reading it, in the first person. Each answer has 2 or 3 sentences and explains the passage in simple words. The first pair is about what happens in the passage, the second about what it means, the third about what it asks of the reader.',\n    '- The answers are the voice of a guide who explains the passage. They are never God or Jesus speaking in the first person.',\n    '- \"application\": one paragraph that brings the passage to the daily life of these readers, with concrete situations.',\n    '- \"action\": one concrete and small action the reader can do today.',\n    '- \"prayer\": a short and direct prayer of 3 to 5 lines, in the first person singular, spoken to God. Separate the lines with \\\\n.',\n    '- \"reflection_question\": one question for the reader to think about during the day.',\n    '- \"phrase\": one short line to remember, in your own words.',\n    '',\n    'Rules:',\n    '- Use only the passage given below. Do not quote, cite or mention any bible verse or bible story that is not in it.',\n    '- When you quote the passage, copy the words exactly as they are in the text below.',\n    '- Do not invent words of Jesus or of God.',\n    '- No greetings, no titles and no markdown.',\n    '',\n    'Answer with JSON only, in this shape:',\n    '{\"dialogue\": [{\"question\": \"...\", \"answer\": \"...\"}, {\"question\": \"...\", \"answer\": \"...\"}, {\"question\": \"...\", \"answer\": \"...\"}], \"application\": \"...\", \"action\": \"...\", \"prayer\": \"...\", \"reflection_question\": \"...\", \"phrase\": \"...\"}',\n    '',\n    `Reference: ${gospel.reference}`,\n    'Passage:',\n    gospel.text,\n  ].join('\\n');\n\n  return {\n    json: {\n      variant,\n      wantsReflection,\n      request: { model, prompt, format, stream: false, think: false },\n    },\n  };\n});\n"
+      },
+      "id": "reflection-prompts",
+      "name": "Reflection Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "loop-variants",
+      "name": "Loop Over Variants",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        224,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "wants-reflection",
+              "leftValue": "={{ $json.wantsReflection }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wants-reflection",
+      "name": "Wants Reflection?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.ollamaUrl }}/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "reflect",
+      "name": "Reflect",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        848
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Puts each Ollama answer into its variant. A reflection is valid only with\n// exactly 3 question-and-answer pairs and the other five fields filled in.\n// A failed call, invalid JSON or an incomplete answer gives aiOk = false.\nconst text = (v) => (typeof v === 'string' ? v.trim() : '');\n\n// The loop returns one result per variant, in the same order.\nconst requests = $('Reflection Prompts').all();\nconst results = $input.all();\nconst inOrder = results.length === requests.length;\n\nreturn requests.map(({ json: { variant, wantsReflection } }, i) => {\n  let reflection = null;\n  if (inOrder && wantsReflection) {\n    try {\n      const answer = JSON.parse(results[i].json.response) ?? {};\n      const pairs = Array.isArray(answer.dialogue) ? answer.dialogue : [];\n      const dialogue = pairs\n        .map((p) => ({ question: text(p?.question), answer: text(p?.answer) }))\n        .filter((p) => p.question && p.answer);\n      const candidate = {\n        dialogue,\n        application: text(answer.application),\n        action: text(answer.action),\n        prayer: text(answer.prayer),\n        reflection_question: text(answer.reflection_question),\n        phrase: text(answer.phrase),\n      };\n      const complete =\n        pairs.length === 3 &&\n        dialogue.length === 3 &&\n        Object.values(candidate).every((v) => (typeof v === 'string' ? v !== '' : true));\n      if (complete) reflection = candidate;\n    } catch (error) {\n      // Failed call or invalid JSON: the rows of this variant get the gospel alone.\n    }\n  }\n  return { json: { ...variant, reflection, aiOk: reflection !== null } };\n});\n"
+      },
+      "id": "apply-reflections",
+      "name": "Apply Reflections",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4. Reflection with AI\nOllama writes one reflection per variant (language, level, audience), as three questions and answers about the passage. All the rows of a variant share it. If a call fails, those rows get the gospel alone.",
+        "height": 500,
+        "width": 1080,
+        "color": 6
+      },
+      "id": "note-4",
+      "name": "Note Reflection",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds one item per variant. English variants with a valid reflection get an\n// Ollama request for the vocabulary box, made from the English gospel text and\n// the reflection of that variant.\nconst { config } = $('Schedule Check').first().json;\nconst model = config.ollama_model || 'gemma4:12b';\nconst { gospels } = $('Build Gospels').first().json;\n\n// The schema makes Ollama write the answer in this exact shape.\nconst string = { type: 'string' };\nconst format = {\n  type: 'object',\n  properties: {\n    vocabulary: {\n      type: 'array',\n      minItems: 5,\n      maxItems: 5,\n      items: {\n        type: 'object',\n        properties: { word: string, meaning_es: string, example: string },\n        required: ['word', 'meaning_es', 'example'],\n      },\n    },\n  },\n  required: ['vocabulary'],\n};\n\nreturn $input.all().map(({ json: variant }) => {\n  const wantsVocabulary = variant.language === 'en' && variant.aiOk;\n  if (!wantsVocabulary) return { json: { key: variant.key, wantsVocabulary } };\n\n  const r = variant.reflection;\n  const prompt = [\n    'You help a Spanish speaker who is learning English.',\n    `From the gospel passage and the reflection below, choose the 5 most difficult English words or expressions for a learner at CEFR level ${variant.level}.`,\n    'Choose only words that appear in the passage or in the reflection. Do not choose names of people or places.',\n    'For each one, give its meaning in Spanish and one short example sentence in English.',\n    'Answer with JSON only, in this shape: {\"vocabulary\": [{\"word\": \"...\", \"meaning_es\": \"...\", \"example\": \"...\"}]}',\n    '',\n    'Passage:',\n    gospels.en.text,\n    '',\n    'Reflection:',\n    ...r.dialogue.flatMap((p) => [p.question, p.answer]),\n    r.application,\n    r.action,\n    r.prayer,\n    r.reflection_question,\n    r.phrase,\n  ].join('\\n');\n\n  return {\n    json: {\n      key: variant.key,\n      wantsVocabulary,\n      request: { model, prompt, format, stream: false, think: false },\n    },\n  };\n});\n"
+      },
+      "id": "vocabulary-prompts",
+      "name": "Vocabulary Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "loop-vocabulary",
+      "name": "Loop Over Vocabulary",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1328,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "wants-vocabulary",
+              "leftValue": "={{ $json.wantsVocabulary }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wants-vocabulary",
+      "name": "Wants Vocabulary?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1552,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.ollamaUrl }}/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "vocabulary",
+      "name": "Vocabulary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        848
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Adds the vocabulary list to each variant. It stays empty for Spanish variants,\n// for variants without reflection, and when the Ollama call failed or returned\n// invalid JSON.\nconst text = (v) => (typeof v === 'string' ? v.trim() : '');\n\n// The loop returns one result per variant, in the same order.\nconst requests = $('Vocabulary Prompts').all();\nconst results = $input.all();\nconst inOrder = results.length === requests.length;\n\nreturn $('Apply Reflections')\n  .all()\n  .map(({ json }, i) => {\n    let vocabulary = [];\n    if (inOrder && requests[i].json.wantsVocabulary) {\n      try {\n        const answer = JSON.parse(results[i].json.response) ?? {};\n        vocabulary = (Array.isArray(answer.vocabulary) ? answer.vocabulary : [])\n          .map((v) => ({\n            word: text(v?.word),\n            meaning_es: text(v?.meaning_es),\n            example: text(v?.example),\n          }))\n          .filter((v) => v.word && v.meaning_es && v.example)\n          .slice(0, 5);\n      } catch (error) {\n        // Failed call or invalid JSON: no vocabulary box.\n      }\n    }\n    return { json: { ...json, vocabulary } };\n  });\n"
+      },
+      "id": "apply-vocabulary",
+      "name": "Apply Vocabulary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5. Vocabulary\nFor English variants with a reflection, Ollama picks 5 difficult words from the gospel and the reflection and gives their Spanish meaning.",
+        "height": 500,
+        "width": 1080,
+        "color": 3
+      },
+      "id": "note-5",
+      "name": "Note Vocabulary",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1056,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "options": {}
+      },
+      "id": "sender",
+      "name": "Sender",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2208,
+        640
+      ],
+      "executeOnce": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Renders one HTML email per row from the gospel of each of its languages, the\n// reflection and the vocabulary of its variants, with the labels in the block's\n// language. Styles are inline because Gmail drops <style>.\nconst LABELS = {\n  en: {\n    locale: 'en-US',\n    subject: 'Gospel of the day',\n    gospel: 'Gospel',\n    dialogue: 'Questions and answers',\n    application: 'For your life',\n    action: 'Today',\n    prayer: 'Prayer',\n    question: 'To think about',\n    phrase: 'To remember',\n    vocabulary: 'Vocabulary',\n    footer:\n      'The gospel text comes from the Evangelizo feed. The reflection is written by an AI and is not church teaching.',\n  },\n  es: {\n    locale: 'es-CO',\n    subject: 'Evangelio del día',\n    gospel: 'Evangelio',\n    dialogue: 'Preguntas y respuestas',\n    application: 'Para tu vida',\n    action: 'Hoy',\n    prayer: 'Oración',\n    question: 'Para pensar',\n    phrase: 'Para recordar',\n    vocabulary: 'Vocabulario',\n    footer:\n      'El texto del evangelio viene del servicio de Evangelizo. La reflexión la escribe una IA y no es enseñanza de la Iglesia.',\n  },\n};\n\n// One palette and two type families for the whole email: a serif for the words\n// of the gospel and the prayer, a sans-serif for the explanation.\nconst SERIF = \"font-family:Georgia,'Times New Roman',Times,serif;\";\nconst SANS = \"font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;\";\nconst INK = '#2b2622';\nconst TEXT = '#4a433c';\nconst MUTED = '#8c8378';\nconst ACCENT = '#9a6b2f';\nconst LINE = '#ebe4d8';\nconst PAPER = '#f4f0e8';\nconst SHEET = '#fffdf9';\nconst TINT = '#f8f3e9';\n\nconst esc = (v) =>\n  String(v ?? '')\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;');\n// Escaped text with one <br> per line break.\nconst multiline = (v) => String(v ?? '').split('\\n').map((l) => esc(l.trim())).filter(Boolean).join('<br>');\n\nconst { rows } = $('Build Plan').first().json;\nconst { gospels } = $('Build Gospels').first().json;\nconst variants = {};\nfor (const { json } of $('Apply Vocabulary').all()) variants[json.key] = json;\n\nconst now = new Date();\n\n// A section is one row of the sheet. Sections are separated by a hairline.\nconst section = (inner, style = '') => `\n          <tr><td style=\"padding:30px 28px;border-top:1px solid ${LINE};${style}\">${inner}\n          </td></tr>`;\nconst label = (text, align = 'left') =>\n  `\n            <div style=\"${SANS}font-size:11px;line-height:16px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:${ACCENT};text-align:${align};\">${text}</div>`;\n\n// One full block: header, gospel, reflection and, in English, vocabulary.\nconst block = (gospel, variant) => {\n  const t = LABELS[gospel.language];\n  const day = new Intl.DateTimeFormat(t.locale, { timeZone: 'America/Bogota', dateStyle: 'full' }).format(now);\n  const date = day.charAt(0).toUpperCase() + day.slice(1);\n\n  const header = `\n          <tr><td align=\"center\" style=\"padding:40px 28px 34px 28px;\">${label(t.subject, 'center')}\n            <div style=\"${SERIF}font-size:27px;line-height:35px;color:${INK};text-align:center;padding-top:14px;\">${esc(gospel.liturgicalDay)}</div>\n            <div style=\"${SANS}font-size:13px;line-height:20px;color:${MUTED};text-align:center;padding-top:8px;\">${esc(date)}</div>\n          </td></tr>`;\n\n  const paragraphs = gospel.text\n    .split('\\n')\n    .map((p) => `\n            <div style=\"${SERIF}font-size:19px;line-height:31px;color:${INK};padding-top:14px;\">${esc(p)}</div>`)\n    .join('');\n  const gospelSection = section(\n    `${label(`${t.gospel} &nbsp;·&nbsp; ${esc(gospel.reference)}`)}${paragraphs}\n            <div style=\"${SANS}font-size:11px;line-height:17px;color:${MUTED};padding-top:20px;\">${esc(gospel.attribution)}</div>`,\n  );\n\n  const r = variant?.aiOk ? variant.reflection : null;\n  let reflection = '';\n  if (r) {\n    const pairs = r.dialogue\n      .map(\n        (p) => `\n            <div style=\"${SERIF}font-size:18px;line-height:27px;font-style:italic;color:${INK};padding-top:20px;\">${esc(p.question)}</div>\n            <div style=\"${SANS}font-size:16px;line-height:26px;color:${TEXT};padding-top:6px;\">${esc(p.answer)}</div>`,\n      )\n      .join('');\n    reflection =\n      section(`${label(t.dialogue)}${pairs}`) +\n      section(\n        `${label(t.application)}\n            <div style=\"${SANS}font-size:16px;line-height:26px;color:${TEXT};padding-top:14px;\">${esc(r.application)}</div>\n            <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top:22px;\">\n              <tr><td style=\"background:${TINT};border-left:3px solid ${ACCENT};padding:16px 18px;\">${label(t.action)}\n                <div style=\"${SANS}font-size:16px;line-height:25px;color:${INK};padding-top:6px;\">${esc(r.action)}</div>\n              </td></tr>\n            </table>`,\n      ) +\n      section(\n        `${label(t.prayer, 'center')}\n            <div style=\"${SERIF}font-size:18px;line-height:31px;font-style:italic;color:${INK};text-align:center;padding-top:14px;\">${multiline(r.prayer)}</div>`,\n        `background:${TINT};`,\n      ) +\n      section(\n        `${label(t.question, 'center')}\n            <div style=\"${SANS}font-size:16px;line-height:26px;color:${TEXT};text-align:center;padding-top:12px;\">${esc(r.reflection_question)}</div>\n            <div style=\"font-size:14px;line-height:14px;color:${ACCENT};text-align:center;padding:26px 0 24px 0;\">&#10022;</div>${label(t.phrase, 'center')}\n            <div style=\"${SERIF}font-size:23px;line-height:33px;color:${INK};text-align:center;padding-top:12px;\">${esc(r.phrase)}</div>`,\n      );\n  }\n\n  const words = (gospel.language === 'en' ? variant?.vocabulary ?? [] : [])\n    .map(\n      (v, i) => `\n            <div style=\"${i ? `border-top:1px solid ${LINE};margin-top:14px;` : ''}padding-top:14px;\">\n              <div style=\"${SANS}font-size:16px;line-height:24px;color:${INK};\"><b>${esc(v.word)}</b> <span style=\"color:${MUTED};\">&nbsp;—&nbsp;</span> ${esc(v.meaning_es)}</div>\n              <div style=\"${SERIF}font-size:15px;line-height:23px;font-style:italic;color:${MUTED};padding-top:2px;\">${esc(v.example)}</div>\n            </div>`,\n    )\n    .join('');\n  const vocabularySection = words ? section(`${label(t.vocabulary)}${words}`) : '';\n\n  // Each block is its own sheet of paper.\n  return `\n        <tr><td style=\"padding:0 0 20px 0;\">\n          <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:${SHEET};border:1px solid ${LINE};border-top:3px solid ${ACCENT};\">${header}${gospelSection}${reflection}${vocabularySection}\n          </table>\n        </td></tr>`;\n};\n\nreturn rows.map((row) => {\n  // Blocks in a fixed order: English first, Spanish below. A language whose\n  // gospel is not ok gives no block.\n  const blockLanguages = (row.language === 'both' ? ['en', 'es'] : [row.language]).filter(\n    (language) => gospels[language]?.ok,\n  );\n  const variantOf = (language) => variants[row.variantKeys.find((key) => key.startsWith(`${language}|`))];\n\n  const blocks = blockLanguages.map((language) => block(gospels[language], variantOf(language))).join('');\n  const footer = blockLanguages.map((language) => `<div style=\"padding-bottom:6px;\">${LABELS[language].footer}</div>`).join('');\n\n  const reference = gospels[blockLanguages[0]]?.reference ?? '';\n  const subject = `${blockLanguages.map((language) => LABELS[language].subject).join(' / ')} — ${reference}`;\n\n  const html = `<!DOCTYPE html>\n<html lang=\"${blockLanguages[0] ?? 'en'}\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>${esc(subject)}</title></head>\n<body style=\"margin:0;padding:0;background:${PAPER};\">\n  <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:${PAPER};\">\n    <tr><td align=\"center\" style=\"padding:24px 10px;\">\n      <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;\">${blocks}\n        <tr><td style=\"padding:4px 24px 20px 24px;${SANS}font-size:11px;line-height:17px;color:${MUTED};text-align:center;\">${footer}</td></tr>\n      </table>\n    </td></tr>\n  </table>\n</body>\n</html>`;\n\n  return {\n    json: {\n      rowNumber: row.rowNumber,\n      recipients: row.recipients,\n      bcc: row.recipients.join(', '),\n      subject,\n      html,\n      blockCount: blockLanguages.length,\n    },\n  };\n});\n"
+      },
+      "id": "render-email",
+      "name": "Render Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-recipients",
+              "leftValue": "={{ $json.recipients.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "has-gospel",
+              "leftValue": "={{ $json.blockCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "can-send",
+      "name": "Can Send?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        2656,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Sender').first().json.emailAddress }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "bccList": "={{ $json.bcc }}"
+        }
+      },
+      "id": "send-email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2880,
+        640
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 6. Email\nBuilds one HTML email per row, with the labels in the language of each block, and sends it with Gmail to the sending account, with the addresses of the row in BCC. Rows with no valid address or no gospel get no email.",
+        "height": 500,
+        "width": 900,
+        "color": 2
+      },
+      "id": "note-6",
+      "name": "Note Email",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2160,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1. Start\nRuns by hand or every hour. The hourly run continues only at the hour and days set in the `Config` tab.",
+        "height": 500,
+        "width": 860,
+        "color": 7
+      },
+      "id": "note-1",
+      "name": "Note Start",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. Read the sheet\nEach row of `Users` is one configuration with its addresses. `Build Plan` lists the recipients of each row and the reflections needed today.",
+        "height": 500,
+        "width": 420,
+        "color": 4
+      },
+      "id": "note-2",
+      "name": "Note Sheet",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        832,
+        -144
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Schedule Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Check": {
+      "main": [
+        [
+          {
+            "node": "Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Users": {
+      "main": [
+        [
+          {
+            "node": "Build Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Plan": {
+      "main": [
+        [
+          {
+            "node": "Gospel Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gospel Requests": {
+      "main": [
+        [
+          {
+            "node": "Fetch Gospel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Gospel": {
+      "main": [
+        [
+          {
+            "node": "Build Gospels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Gospels": {
+      "main": [
+        [
+          {
+            "node": "Reflection Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reflection Prompts": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Variants": {
+      "main": [
+        [
+          {
+            "node": "Apply Reflections",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wants Reflection?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wants Reflection?": {
+      "main": [
+        [
+          {
+            "node": "Reflect",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reflect": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Reflections": {
+      "main": [
+        [
+          {
+            "node": "Vocabulary Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vocabulary Prompts": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Vocabulary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Vocabulary": {
+      "main": [
+        [
+          {
+            "node": "Apply Vocabulary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wants Vocabulary?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wants Vocabulary?": {
+      "main": [
+        [
+          {
+            "node": "Vocabulary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Vocabulary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vocabulary": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Vocabulary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Vocabulary": {
+      "main": [
+        [
+          {
+            "node": "Sender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sender": {
+      "main": [
+        [
+          {
+            "node": "Render Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Email": {
+      "main": [
+        [
+          {
+            "node": "Can Send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can Send?": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  },
+  "pinData": {}
+}

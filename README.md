@@ -35,3 +35,4 @@ Credentials are never stored here. n8n keeps them encrypted in the `n8n_data` vo
 | Project | Spec | Description |
 | --- | --- | --- |
 | [`projects/news-digest/`](projects/news-digest/README.md) | [SPEC 01](specs/01-daily-news-digest.md) | Daily news email for each user in a Google Sheet, from RSS feeds, summarised with Ollama in the user's language and English level. |
+| [`projects/daily-gospel/`](projects/daily-gospel/README.md) | [SPEC 02](specs/02-daily-gospel-email.md) | Daily email with the Catholic gospel of the day in English and Spanish, and a question-and-answer reflection written with Ollama for each group's language, level and audience. |
