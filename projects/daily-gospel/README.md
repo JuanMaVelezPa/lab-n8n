@@ -2,7 +2,7 @@
 
 A daily email with the Catholic gospel of the day and a short reflection written with local Ollama.
 On the days the passage is hard to understand, it also has a two-line apologetic note.
-Recipients and settings live in a Google Sheet. The full design is in [SPEC 02](../../specs/02-daily-gospel-email.md) and [SPEC 03](../../specs/03-gospel-apologetic-note.md).
+Recipients and settings live in a Google Sheet. The full design is in [SPEC 02](../../specs/02-daily-gospel-email.md) and [SPEC 03](../../specs/03-gospel-apologetic-note.md), and the email layout in [SPEC 04](../../specs/04-responsive-email-layout.md).
 
 ## How it works
 
@@ -14,7 +14,7 @@ The workflow has seven groups of nodes, marked with sticky notes:
 4. **Apologetic note.** Ollama decides, once per language, whether the passage has a custom, an image, an expression or a saying that a modern reader would misread. Only then it writes two lines: the context and the meaning. The email shows them after the gospel text, under `Apologetic note` or `Nota apologética`.
 5. **Reflection with AI.** Ollama writes three questions and answers about the passage, an application with one action for today, a short prayer, a question and a phrase to remember. It receives only the text of the day and, when there is one, the apologetic note.
 6. **Vocabulary.** For English, Ollama picks 5 difficult words from the gospel and the reflection and gives their Spanish meaning.
-7. **Email.** One HTML email per row, sent with Gmail to the sending account, with the addresses of the row in BCC.
+7. **Email.** One HTML email per row, sent with Gmail to the sending account, with the addresses of the row in BCC. The email is one column, up to 760px wide on a laptop and full width on a phone, with less side padding on small screens.
 
 The gospel text is never written by the AI. The footer of the email says that the note and the reflection are AI-written and are not church teaching.
 
@@ -71,6 +71,7 @@ Then open the `Daily Gospel` workflow in n8n and finish it by hand:
 4. Save.
 
 Importing again replaces the workflow in n8n with the file. The sheet ID and the selected credentials are lost and these four steps must be repeated.
+Importing also unpublishes the workflow. Click **Publish** again after the four steps.
 
 ### 4. Test and activate
 
