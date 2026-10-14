@@ -1,7 +1,7 @@
 # News digest
 
 A daily email with each user's latest news, read from RSS feeds and summarised with local Ollama.
-Users, topics, feeds and settings live in a Google Sheet. The full design is in [SPEC 01](../../specs/01-daily-news-digest.md).
+Users, topics, feeds and settings live in a Google Sheet. The full design is in [SPEC 01](../../specs/01-daily-news-digest.md), and the email layout in [SPEC 04](../../specs/04-responsive-email-layout.md).
 
 ## How it works
 
@@ -12,7 +12,7 @@ The workflow has six groups of nodes, marked with sticky notes:
 3. **Pick the news.** Each feed is read once. Each user gets the newest articles of their topics, up to `news_count`.
 4. **Summarise with AI.** Ollama rewrites one article at a time in the user's language and level. If a call fails, the original text stays.
 5. **Vocabulary.** For users who read in English, Ollama picks 5 difficult words from the summaries and gives their Spanish meaning.
-6. **Email.** One HTML email per user, sent with Gmail. Users with no articles get no email.
+6. **Email.** One HTML email per user, sent with Gmail. Users with no articles get no email. The email is one column, up to 760px wide on a laptop and full width on a phone, with less side padding on small screens.
 
 ## Setup
 
@@ -91,6 +91,7 @@ Then open the `News Digest` workflow in n8n and finish it by hand:
 4. Save.
 
 Importing again replaces the workflow in n8n with the file. The sheet ID and the selected credentials are lost and these four steps must be repeated.
+Importing also unpublishes the workflow. Click **Publish** again after the four steps.
 
 ### 6. Test and activate
 

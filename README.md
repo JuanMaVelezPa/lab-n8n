@@ -34,5 +34,5 @@ Credentials are never stored here. n8n keeps them encrypted in the `n8n_data` vo
 
 | Project | Spec | Description |
 | --- | --- | --- |
-| [`projects/news-digest/`](projects/news-digest/README.md) | [SPEC 01](specs/01-daily-news-digest.md) | Daily news email for each user in a Google Sheet, from RSS feeds, summarised with Ollama in the user's language and English level. |
-| [`projects/daily-gospel/`](projects/daily-gospel/README.md) | [SPEC 02](specs/02-daily-gospel-email.md), [SPEC 03](specs/03-gospel-apologetic-note.md) | Daily email with the Catholic gospel of the day in English and Spanish, a two-line apologetic note on the days the passage needs it, and a question-and-answer reflection written with Ollama for each group's language, level and audience. |
+| [`projects/news-digest/`](projects/news-digest/README.md) | [SPEC 01](specs/01-daily-news-digest.md), [SPEC 04](specs/04-responsive-email-layout.md) | Daily news email for each user in a Google Sheet, from RSS feeds, summarised with Ollama in the user's language and English level. |
+| [`projects/daily-gospel/`](projects/daily-gospel/README.md) | [SPEC 02](specs/02-daily-gospel-email.md), [SPEC 03](specs/03-gospel-apologetic-note.md), [SPEC 04](specs/04-responsive-email-layout.md) | Daily email with the Catholic gospel of the day in English and Spanish, a two-line apologetic note on the days the passage needs it, and a question-and-answer reflection written with Ollama for each group's language, level and audience. |
