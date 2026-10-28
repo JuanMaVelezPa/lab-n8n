@@ -19,9 +19,7 @@
         "rule": {
           "interval": [
             {
-              "field": "hours",
-              "hoursInterval": 1,
-              "triggerAtMinute": 0
+              "field": "hours"
             }
           ]
         }
@@ -96,7 +94,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "name": "Google Sheets OAuth2"
+          "name": "Google Sheets account"
         }
       }
     },
@@ -126,7 +124,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "name": "Google Sheets OAuth2"
+          "name": "Google Sheets account"
         }
       }
     },
@@ -165,7 +163,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1552,
+        1312,
         0
       ]
     },
@@ -189,7 +187,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
+        1520,
         0
       ],
       "onError": "continueRegularOutput"
@@ -203,7 +201,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1984,
+        1744,
         0
       ]
     },
@@ -219,7 +217,7 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1504,
+        1264,
         -144
       ]
     },
@@ -232,7 +230,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2208,
+        1968,
         0
       ]
     },
@@ -245,7 +243,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        2432,
+        2192,
         0
       ]
     },
@@ -279,7 +277,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2656,
+        2416,
         208
       ]
     },
@@ -299,7 +297,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2880,
+        2640,
         208
       ],
       "onError": "continueRegularOutput"
@@ -313,7 +311,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3088,
+        2848,
         0
       ]
     },
@@ -321,15 +319,14 @@
       "parameters": {
         "content": "## 4. Apologetic note\nOllama decides, once per language, if the passage is hard to understand. When it is, it writes two lines: the context and the meaning. They go into the email after the gospel and into the reflection prompt. `apologetics` = `off` in `Config` skips the calls.",
         "height": 500,
-        "width": 1080,
-        "color": 1
+        "width": 1080
       },
       "id": "note-apologetics",
       "name": "Note Apologetics",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        2160,
+        1920,
         -144
       ]
     },
@@ -571,7 +568,7 @@
       "executeOnce": true,
       "credentials": {
         "gmailOAuth2": {
-          "name": "Gmail OAuth2"
+          "name": "Gmail account"
         }
       }
     },
@@ -650,7 +647,7 @@
       ],
       "credentials": {
         "gmailOAuth2": {
-          "name": "Gmail OAuth2"
+          "name": "Gmail account"
         }
       }
     },
@@ -1057,7 +1054,8 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "timezone": "America/Bogota"
+    "timezone": "America/Bogota",
+    "binaryMode": "separate"
   },
   "pinData": {}
 }

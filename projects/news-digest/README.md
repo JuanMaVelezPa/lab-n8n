@@ -16,12 +16,9 @@ The workflow has six groups of nodes, marked with sticky notes:
 
 ## Setup
 
-The Google part is done by hand, once. OAuth consent cannot be automated.
-
 You need:
 
-- A Google account.
-- n8n running at http://localhost:5678 (see the [root README](../../README.md)).
+- n8n running at http://localhost:5678 (see the [shared setup](../../docs/setup.md)).
 - The `ollama` container on the same Docker network, with the model from the `Config` tab pulled (`gemma4:12b` in the template).
 
 ### 1. Create the Google Sheet
@@ -39,44 +36,16 @@ You need:
 
    You will paste it into the `Settings` node of the workflow.
 
-### 2. Enable the Google APIs
+### 2. Create the Google credentials
 
-1. Open https://console.cloud.google.com and create a project, for example `n8n`.
-2. With that project selected, go to **APIs & Services → Library**.
-3. Enable **Google Sheets API**.
-4. Enable **Gmail API**.
+This project needs the `Google Sheets account` and `Gmail account` credentials in n8n.
+If they do not exist yet, create them with steps 5 and 6 of the [shared setup](../../docs/setup.md#5-create-the-google-oauth-client).
 
-### 3. Create the OAuth client
+Check: in n8n, open **Credentials** and confirm that both show **Account connected**.
 
-1. Go to **APIs & Services → OAuth consent screen** (Google Auth Platform) and click **Get started**.
-2. Fill in an app name (for example `n8n`) and your email as support email.
-3. Choose **External** as audience, add your email as contact, and finish.
-4. In **Audience**, add under **Test users** the Google account that owns the sheet and will send the emails.
-5. In **Clients**, click **Create client**:
-   - **Application type:** Web application.
-   - **Authorized redirect URIs:** `http://localhost:5678/rest/oauth2-credential/callback`
-6. Copy the **Client ID** and the **Client secret**.
+### 3. Import the workflow
 
-While the app is in **Testing** status, Google expires the authorisation after 7 days and both credentials must be reconnected.
-To avoid this, open **Audience** and click **Publish app**. An unverified app shows a warning screen on sign-in, which is fine for personal use.
-
-### 4. Create the credentials in n8n
-
-Both credentials use the same Client ID and Client secret.
-
-1. In n8n, open **Credentials → Create credential**.
-2. Choose **Google Sheets OAuth2 API**, name it `Google Sheets OAuth2`, paste the Client ID and Client secret, click **Sign in with Google** and accept the permissions.
-3. Repeat with **Gmail OAuth2 API**, named `Gmail OAuth2`.
-
-Sign in with the account you added as test user. Open n8n at `http://localhost:5678`, not at another host name or IP, or the redirect URI will not match.
-
-Check: both credentials show **Account connected**.
-
-Credentials are never stored in this repo. n8n keeps them encrypted in the `n8n_data` volume.
-
-### 5. Import the workflow
-
-Run these from the repo root. The file is copied into the container first, because the container cannot see this folder.
+Run these from the repo root:
 
 ```bash
 docker cp projects/news-digest/workflows/news-digest.json n8n:/tmp/news-digest.json
@@ -86,14 +55,14 @@ docker exec n8n n8n import:workflow --input=/tmp/news-digest.json
 Then open the `News Digest` workflow in n8n and finish it by hand:
 
 1. Open the `Settings` node and paste the document ID of your sheet into `sheetId`.
-2. Open `Config`, `Users`, `Topics` and `Feeds`, and select the `Google Sheets OAuth2` credential in each.
-3. Open `Send Email` and select the `Gmail OAuth2` credential.
+2. Open `Config`, `Users`, `Topics` and `Feeds`, and select the `Google Sheets account` credential in each.
+3. Open `Send Email` and select the `Gmail account` credential.
 4. Save.
 
-Importing again replaces the workflow in n8n with the file. The sheet ID and the selected credentials are lost and these four steps must be repeated.
-Importing also unpublishes the workflow. Click **Publish** again after the four steps.
+Every import unpublishes the workflow and drops the sheet ID and the selected credentials, so these four steps are needed after each one.
+See [Import a workflow](../../docs/operations.md#import-a-workflow) for the details, and [Export a workflow to the repo](../../docs/operations.md#export-a-workflow-to-the-repo) to bring a change made in the editor back into the repo.
 
-### 6. Test and activate
+### 4. Test and activate
 
 1. Click **Execute workflow**. The manual run skips the schedule check and sends the emails now.
 2. Wait for it to finish. On CPU, Ollama needs about 25 seconds per article and about 80 seconds for the vocabulary box.
@@ -170,3 +139,14 @@ Edit the `Config` tab:
 | `max_article_age_hours` | Articles older than this are left out. A higher value gives more articles, but they can repeat the next day. |
 
 The change applies from the next hour. The email arrives some minutes after `send_hour`, because the summaries are written first.
+
+## When something fails
+
+| What fails | What happens |
+| --- | --- |
+| One feed, or a feed that changed its address | The feed is skipped. The email is sent with the articles of the other feeds. |
+| Ollama, or one summary | That article keeps its original title and text, in the language of the feed. The other articles are summarised as usual. |
+| The vocabulary call | The email has the summaries and no vocabulary box. |
+| No fresh articles for a user | That user gets no email that day. The run does not fail. |
+
+Errors are visible in the **Executions** list of n8n.
