@@ -1,6 +1,7 @@
 # Secrets and local environment
 .env
 .env.*
+!.env.example
 
 # n8n credential exports and backups (never commit these)
 *credentials*.json
