@@ -1,6 +1,6 @@
 # SPEC 07 — Public repository
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 05, SPEC 06
 > **Date:** 2026-10-28
 > **Objective:** Make `JuanMaVelezPa/lab-n8n` public after a clean gitleaks scan of its full history, with secret scanning, push protection and a protected `main` turned on.
@@ -91,7 +91,7 @@ Conventions:
 
 1. Run `git fetch --all` so every remote branch is present locally. Run the gitleaks scan from the Data model. Check: the command exits with code `0` and the report lists no findings. If it finds a leak, stop: the repo stays private, the secret is rotated, and the fix goes in its own spec.
 2. Commit this spec's status change on the branch `spec-07-public-repository` and push it. Check: the push is accepted.
-3. Run `gh repo edit JuanMaVelezPa/lab-n8n --visibility public --accept-visibility-change-consequences`. Check: `gh repo view JuanMaVelezPa/lab-n8n --json visibility` returns `PUBLIC`.
+3. Run `gh repo edit JuanMaVelezPa/lab-n8n --visibility public`. `gh` 2.46.0 has no `--accept-visibility-change-consequences` flag and changes the visibility without a prompt. Check: `gh repo view JuanMaVelezPa/lab-n8n --json visibility` returns `PUBLIC`.
 4. Turn on secret scanning and push protection with `gh api -X PATCH repos/JuanMaVelezPa/lab-n8n` and the `security_and_analysis` values from the Data model. Check: `gh api repos/JuanMaVelezPa/lab-n8n --jq .security_and_analysis` shows both as `enabled`.
 5. Create the ruleset from the Data model with `gh api -X POST repos/JuanMaVelezPa/lab-n8n/rulesets`. Check: `gh api repos/JuanMaVelezPa/lab-n8n/rules/branches/main --jq '.[].type'` prints `deletion` and `non_fast_forward`.
 6. Run `gh repo edit JuanMaVelezPa/lab-n8n --enable-projects=false`. Check: `gh repo view JuanMaVelezPa/lab-n8n --json hasProjectsEnabled` returns `false`.
@@ -99,17 +99,17 @@ Conventions:
 
 ## Acceptance criteria
 
-- [ ] The gitleaks scan of every branch exited with code `0` before the visibility changed.
-- [ ] `gh repo view JuanMaVelezPa/lab-n8n --json visibility` returns `PUBLIC`.
-- [ ] `curl -s -o /dev/null -w '%{http_code}' https://github.com/JuanMaVelezPa/lab-n8n` without a GitHub login returns `200`.
-- [ ] `gh api repos/JuanMaVelezPa/lab-n8n --jq .security_and_analysis.secret_scanning.status` returns `enabled`.
-- [ ] `gh api repos/JuanMaVelezPa/lab-n8n --jq .security_and_analysis.secret_scanning_push_protection.status` returns `enabled`.
-- [ ] `gh api repos/JuanMaVelezPa/lab-n8n/rules/branches/main --jq '.[].type'` lists `deletion` and `non_fast_forward`.
-- [ ] `gh repo view JuanMaVelezPa/lab-n8n --json hasProjectsEnabled` returns `false`.
-- [ ] `gh repo view JuanMaVelezPa/lab-n8n --json hasIssuesEnabled` returns `true`.
-- [ ] The six `spec-01-*` to `spec-06-*` branches still exist on GitHub.
-- [ ] `git diff main~1 --stat` after the merge shows only `specs/07-public-repository.md`.
-- [ ] The scheduled runs of both workflows after the change send their emails, with no failed execution in **Executions**.
+- [x] The gitleaks scan of every branch exited with code `0` before the visibility changed.
+- [x] `gh repo view JuanMaVelezPa/lab-n8n --json visibility` returns `PUBLIC`.
+- [x] `curl -s -o /dev/null -w '%{http_code}' https://github.com/JuanMaVelezPa/lab-n8n` without a GitHub login returns `200`.
+- [x] `gh api repos/JuanMaVelezPa/lab-n8n --jq .security_and_analysis.secret_scanning.status` returns `enabled`.
+- [x] `gh api repos/JuanMaVelezPa/lab-n8n --jq .security_and_analysis.secret_scanning_push_protection.status` returns `enabled`.
+- [x] `gh api repos/JuanMaVelezPa/lab-n8n/rules/branches/main --jq '.[].type'` lists `deletion` and `non_fast_forward`.
+- [x] `gh repo view JuanMaVelezPa/lab-n8n --json hasProjectsEnabled` returns `false`.
+- [x] `gh repo view JuanMaVelezPa/lab-n8n --json hasIssuesEnabled` returns `true`.
+- [x] The six `spec-01-*` to `spec-06-*` branches still exist on GitHub.
+- [x] `git diff main~1 --stat` after the merge shows only `specs/07-public-repository.md`.
+- [x] The scheduled runs of both workflows after the change send their emails, with no failed execution in **Executions**.
 
 ## Decisions
 
