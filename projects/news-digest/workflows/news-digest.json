@@ -88,7 +88,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "name": "Google Sheets OAuth2"
+          "name": "Google Sheets account"
         }
       }
     },
@@ -134,7 +134,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "name": "Google Sheets OAuth2"
+          "name": "Google Sheets account"
         }
       }
     },
@@ -164,7 +164,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "name": "Google Sheets OAuth2"
+          "name": "Google Sheets account"
         }
       }
     },
@@ -194,7 +194,7 @@
       "alwaysOutputData": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "name": "Google Sheets OAuth2"
+          "name": "Google Sheets account"
         }
       }
     },
@@ -570,7 +570,7 @@
       ],
       "credentials": {
         "gmailOAuth2": {
-          "name": "Gmail OAuth2"
+          "name": "Gmail account"
         }
       }
     }
@@ -853,7 +853,8 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "timezone": "America/Bogota"
+    "timezone": "America/Bogota",
+    "binaryMode": "separate"
   },
   "pinData": {}
 }

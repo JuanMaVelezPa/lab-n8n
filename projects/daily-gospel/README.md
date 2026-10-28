@@ -22,9 +22,8 @@ The gospel text is never written by the AI. The footer of the email says that th
 
 You need:
 
-- n8n running at http://localhost:5678 (see the [root README](../../README.md)).
+- n8n running at http://localhost:5678 (see the [shared setup](../../docs/setup.md)).
 - The `ollama` container on the same Docker network, with the model from the `Config` tab pulled (`gemma4:12b` in the template).
-- The `Google Sheets OAuth2` and `Gmail OAuth2` credentials in n8n.
 
 ### 1. Create the Google Sheet
 
@@ -43,20 +42,17 @@ This project has its own spreadsheet, separate from `News Digest`.
 
    You will paste it into the `Settings` node of the workflow.
 
-### 2. Credentials
+### 2. Create the Google credentials
 
-This project reuses the two credentials created for the news digest: `Google Sheets OAuth2` and `Gmail OAuth2`.
-They work for the new sheet as they are, because it belongs to the same Google account and needs the same permissions.
-
-If they do not exist yet, create them with steps 2 to 4 of the [news digest setup](../news-digest/README.md#2-enable-the-google-apis).
+This project needs the `Google Sheets account` and `Gmail account` credentials in n8n.
+If they do not exist yet, create them with steps 5 and 6 of the [shared setup](../../docs/setup.md#5-create-the-google-oauth-client).
+If the news digest is already set up, reuse its credentials. They work for this sheet as they are, because it belongs to the same Google account and needs the same permissions.
 
 Check: in n8n, open **Credentials** and confirm that both show **Account connected**.
 
-Credentials are never stored in this repo. n8n keeps them encrypted in the `n8n_data` volume.
-
 ### 3. Import the workflow
 
-Run these from the repo root. The file is copied into the container first, because the container cannot see this folder.
+Run these from the repo root:
 
 ```bash
 docker cp projects/daily-gospel/workflows/daily-gospel.json n8n:/tmp/daily-gospel.json
@@ -70,8 +66,8 @@ Then open the `Daily Gospel` workflow in n8n and finish it by hand:
 3. Open `Sender` and `Send Email`, and select the Gmail credential in each.
 4. Save.
 
-Importing again replaces the workflow in n8n with the file. The sheet ID and the selected credentials are lost and these four steps must be repeated.
-Importing also unpublishes the workflow. Click **Publish** again after the four steps.
+Every import unpublishes the workflow and drops the sheet ID and the selected credentials, so these four steps are needed after each one.
+See [Import a workflow](../../docs/operations.md#import-a-workflow) for the details, and [Export a workflow to the repo](../../docs/operations.md#export-a-workflow-to-the-repo) to bring a change made in the editor back into the repo.
 
 ### 4. Test and activate
 
@@ -155,7 +151,7 @@ Edit the `Config` tab:
 
 The change applies from the next hour. The email arrives some minutes after `send_hour`, because the reflections are written first.
 
-### When something fails
+## When something fails
 
 | What fails | What happens |
 | --- | --- |
