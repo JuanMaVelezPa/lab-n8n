@@ -1,6 +1,6 @@
 # Operations
 
-Day-to-day operation of the stack: moving workflows between the repo and n8n, backups, updates and troubleshooting.
+Day-to-day operation of the stack: moving workflows between the repo and n8n, backups, updates, the Cloudflare Tunnel and troubleshooting.
 It assumes the [shared setup](setup.md) is done.
 
 Commands are run from the repo root.
@@ -108,7 +108,57 @@ docker compose up -d
 
 Back up the volume first. A new n8n version can migrate the database, and an older image cannot open it afterwards.
 
+`docker compose pull` also pulls the latest `cloudflared` image, and `docker compose up -d` restarts it when the image changed.
+
 Check: `docker exec n8n n8n --version` prints the new version, and the workflows are still published.
+After the update, `docker logs cloudflared` shows `Registered tunnel connection` again.
+
+## Cloudflare Tunnel
+
+The `cloudflared` container opens the tunnel `lab-n8n`, which publishes n8n at `https://lab-n8n.jotaeme.dev` behind Cloudflare Access.
+How it fits in the stack is in [architecture](architecture.md#remote-access), and how to create it is in the [setup guide](setup.md#cloudflare-tunnel-and-access).
+
+### Status and logs
+
+```bash
+docker compose ps cloudflared
+docker logs --tail 50 cloudflared
+```
+
+A healthy tunnel logs `Registered tunnel connection` once per connection, usually four.
+In **Zero Trust → Networks → Tunnels**, the tunnel `lab-n8n` shows **HEALTHY**.
+
+### Rotate the tunnel token
+
+Rotate it if it may have leaked, for example in a commit or a screenshot.
+
+1. In **Zero Trust → Networks → Tunnels**, open `lab-n8n` and refresh its token.
+2. Copy the new token and replace the value of `TUNNEL_TOKEN` in `.env`.
+3. Restart the container with the new value:
+
+   ```bash
+   docker compose up -d cloudflared
+   ```
+
+Check: `docker logs cloudflared` shows `Registered tunnel connection`, and the tunnel shows **HEALTHY**.
+
+### When lab-n8n.jotaeme.dev does not load
+
+Go down the list until one check fails.
+
+1. **The containers run.** `docker compose ps` shows `n8n` and `cloudflared` as `Up`.
+   A `cloudflared` that keeps restarting usually has an empty or wrong `TUNNEL_TOKEN` in `.env`. `docker logs cloudflared` says so.
+2. **The tunnel is connected.** `docker logs cloudflared` shows `Registered tunnel connection`, and the dashboard shows **HEALTHY**.
+   A Cloudflare error page `1033` in the browser means the tunnel has no connection.
+3. **The DNS record exists.** `dig +short lab-n8n.jotaeme.dev` prints Cloudflare addresses.
+   If not, check **DNS** in the `jotaeme.dev` zone for the proxied `CNAME lab-n8n` to `<tunnel id>.cfargotunnel.com`.
+4. **Access answers.** `curl -sI https://lab-n8n.jotaeme.dev` returns `302` with a `location` on `cloudflareaccess.com`.
+   If the PIN email does not arrive, check the spam folder and the email in the `Owner` policy of the Access application.
+5. **n8n answers.** `curl -s -o /dev/null -w '%{http_code}' http://localhost:5678/healthz` prints `200`.
+   A `502` page after the PIN means `cloudflared` cannot reach `http://n8n:5678`. Check that both containers are on the `ia` network with `docker network inspect ia`, and that the tunnel route points to `http://n8n:5678`.
+
+While the domain is down, the workflows keep running on schedule, and the editor is still at http://localhost:5678 on the server.
+Devices on the LAN cannot use `http://<server IP>:5678`, because n8n listens only on `127.0.0.1`. They use the domain.
 
 ## Ollama
 

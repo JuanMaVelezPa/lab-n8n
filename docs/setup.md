@@ -1,6 +1,6 @@
 # Setup
 
-The shared setup for every project in this repo: Docker, n8n, Ollama and the Google credentials.
+The shared setup for every project in this repo: Docker, n8n, Ollama, the Cloudflare Tunnel with Access, and the Google credentials.
 Do it once, in this order. Then follow the README of each project.
 
 Commands are run from the repo root unless a step says otherwise.
@@ -85,13 +85,19 @@ Check: while a workflow is running, `docker exec ollama ollama ps` shows `GPU` i
 
 ## 4. Start n8n
 
-From the repo root:
+From the repo root, create `.env` from the example before the first start:
 
 ```bash
-docker compose up -d
+cp .env.example .env
+docker compose up -d n8n
 ```
 
+`.env` sets `COMPOSE_PROJECT_NAME=n8n`, so the data volume is always `n8n_n8n_data`, whatever the folder is called.
+Create it before the first `docker compose up`, or n8n starts on a different, empty volume once it exists.
+`.env` is ignored by git. `TUNNEL_TOKEN` stays a placeholder until the next section.
+
 Open http://localhost:5678 and create the owner account.
+n8n listens only on `127.0.0.1:5678`, so `localhost` works on the server and other devices use the domain below.
 
 Check: n8n can reach Ollama over the `ia` network.
 
@@ -100,6 +106,57 @@ docker exec n8n wget -qO- http://ollama:11434/api/version
 ```
 
 It prints the Ollama version as JSON.
+
+### Cloudflare Tunnel and Access
+
+n8n is published at `https://lab-n8n.jotaeme.dev` through a Cloudflare Tunnel.
+The `cloudflared` container in this repo's compose opens the tunnel, so no port is opened on the router.
+Cloudflare Access stands in front of the whole hostname and asks for a one-time PIN sent by email before anyone reaches n8n.
+n8n still asks for its own login after that.
+
+You need a Cloudflare account with the `jotaeme.dev` zone, and Zero Trust enabled on the Free plan.
+The dashboard steps are done by hand, in this order, so the hostname is never public without Access.
+
+**1. Turn on the one-time PIN login.**
+In **Zero Trust → Integrations → Identity providers** (or **Settings → Authentication**), add **One-time PIN** if it is not listed.
+
+**2. Create the Access application.**
+In **Zero Trust → Access → Applications**, add an application of type **Self-hosted and private**:
+
+- **Public hostname:** subdomain `lab-n8n`, domain `jotaeme.dev`, empty path.
+- **Policy:** name `Owner`, action **Allow**, include **Emails** `you@example.com`.
+- **Authentication:** only **One-time PIN**, with **Apply instant authentication** on.
+- **Details:** name `lab-n8n`, session duration **24 hours**.
+
+Check: **Access → Applications** lists `lab-n8n` with the `Owner` policy.
+
+**3. Create the tunnel.**
+In **Zero Trust → Networks → Tunnels**, create a tunnel of type **Cloudflared** named `lab-n8n`.
+On the install screen choose **Docker** and copy only the value after `--token`. Do not run the command.
+Put it in `.env` on the server:
+
+```text
+TUNNEL_TOKEN=<tunnel token>
+```
+
+The install screen waits for a connector. Leave it, open the tunnel from the list, and in **Routes** add a **Published application**:
+
+- **Subdomain:** `lab-n8n`, **Domain:** `jotaeme.dev`, empty path.
+- **Service URL:** `http://n8n:5678`. `cloudflared` reaches n8n by name on the `ia` network.
+
+Check: **DNS** in the `jotaeme.dev` zone shows a proxied `CNAME lab-n8n` to `<tunnel id>.cfargotunnel.com`.
+
+**4. Start `cloudflared`.**
+
+```bash
+docker compose up -d cloudflared
+```
+
+Check: `docker logs cloudflared` shows `Registered tunnel connection`, and the tunnel shows **HEALTHY** in the dashboard.
+Opening `https://lab-n8n.jotaeme.dev` in a private window asks for an email, sends a PIN to `you@example.com`, and then shows the n8n sign-in page.
+
+The n8n service already sets `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL`, `WEBHOOK_URL`, `N8N_PROXY_HOPS` and `N8N_SECURE_COOKIE` for this hostname in `docker-compose.yml`.
+To use another hostname, change those values, the tunnel route and the Access application together.
 
 ## 5. Create the Google OAuth client
 
@@ -123,7 +180,9 @@ You need a Google account. It owns the sheets and sends the emails.
 4. In **Audience**, add under **Test users** the Google account that owns the sheets and will send the emails.
 5. In **Clients**, click **Create client**:
    - **Application type:** Web application.
-   - **Authorized redirect URIs:** `http://localhost:5678/rest/oauth2-credential/callback`
+   - **Authorized redirect URIs:** add both.
+     - `https://lab-n8n.jotaeme.dev/rest/oauth2-credential/callback`
+     - `http://localhost:5678/rest/oauth2-credential/callback`
 6. Copy the **Client ID** and the **Client secret**.
 
 While the app is in **Testing** status, Google expires the authorisation after 7 days and both credentials must be reconnected.
@@ -137,7 +196,11 @@ Both credentials use the same Client ID and Client secret.
 2. Choose **Google Sheets OAuth2 API**, name it `Google Sheets account`, paste the Client ID and Client secret, click **Sign in with Google** and accept the permissions.
 3. Repeat with **Gmail OAuth2 API**, named `Gmail account`.
 
-Sign in with the account you added as test user. Open n8n at `http://localhost:5678`, not at another host name or IP, or the redirect URI will not match.
+Sign in with the account you added as test user.
+Open n8n at `https://lab-n8n.jotaeme.dev`, or on the server at `http://localhost:5678`.
+n8n builds the redirect from `N8N_EDITOR_BASE_URL`, so the credential page shows `https://lab-n8n.jotaeme.dev/rest/oauth2-credential/callback` as **OAuth Redirect URL**.
+Google must list that URI, or the sign-in fails with `redirect_uri_mismatch`.
+The `localhost` URI stays authorized as a fallback, for when `N8N_EDITOR_BASE_URL` is removed while the tunnel is down.
 
 Check: both credentials show **Account connected**.
 

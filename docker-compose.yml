@@ -4,13 +4,30 @@ services:
     container_name: n8n
     restart: unless-stopped
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
     environment:
       - GENERIC_TIMEZONE=America/Bogota
       - TZ=America/Bogota
-      - N8N_SECURE_COOKIE=false
+      - N8N_HOST=lab-n8n.jotaeme.dev
+      - N8N_PROTOCOL=https
+      - N8N_EDITOR_BASE_URL=https://lab-n8n.jotaeme.dev/
+      - WEBHOOK_URL=https://lab-n8n.jotaeme.dev/
+      - N8N_PROXY_HOPS=1
+      - N8N_SECURE_COOKIE=true
     volumes:
       - n8n_data:/home/node/.n8n
+    networks:
+      - ia
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      - n8n
     networks:
       - ia
 
