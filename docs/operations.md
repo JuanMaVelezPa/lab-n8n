@@ -101,17 +101,48 @@ Check: open http://localhost:5678, sign in, and see the workflows and credential
 
 ## Update n8n
 
+The n8n version is pinned in `docker-compose.yml`, in the `image` tag of two services: `n8n` and `n8n-runners`.
+Both tags are always the same version. A plain `docker compose pull` does not change the version.
+
+1. Pick the new version and read the n8n breaking changes between the current version and the new one.
+   For a major version, also run n8n's migration report (**Settings → Migration Report**) on the latest release of the current major.
+2. Back up the volume with "Back up" above.
+   A new n8n version can migrate the database, and an older image cannot open it afterwards, so this backup is the only way back.
+3. Change the tag of both images in `docker-compose.yml` to the new version:
+
+   ```yaml
+   n8n:
+     image: docker.n8n.io/n8nio/n8n:<version>
+   n8n-runners:
+     image: n8nio/runners:<version>
+   ```
+
+4. Pull and recreate only n8n and its runners:
+
+   ```bash
+   docker compose pull n8n n8n-runners
+   docker compose up -d n8n n8n-runners
+   ```
+
+5. Check:
+   - `docker exec n8n n8n --version` prints the new version.
+   - `docker logs n8n` shows no startup error.
+   - Both workflows are still published.
+   - The next scheduled runs show **Success** in **Executions**, and the emails arrive.
+6. Roll back, only if a failure cannot be fixed on the new version:
+   - Put the previous tags back in `docker-compose.yml`.
+   - Restore the backup from step 2 with "Restore" above.
+   - Run `docker compose up -d n8n n8n-runners`.
+
+These commands name the services, so they never pull or restart `cloudflared`.
+Update `cloudflared` on its own:
+
 ```bash
-docker compose pull
-docker compose up -d
+docker compose pull cloudflared
+docker compose up -d cloudflared
 ```
 
-Back up the volume first. A new n8n version can migrate the database, and an older image cannot open it afterwards.
-
-`docker compose pull` also pulls the latest `cloudflared` image, and `docker compose up -d` restarts it when the image changed.
-
-Check: `docker exec n8n n8n --version` prints the new version, and the workflows are still published.
-After the update, `docker logs cloudflared` shows `Registered tunnel connection` again.
+Check: `docker logs cloudflared` shows `Registered tunnel connection` again.
 
 ## Cloudflare Tunnel
 

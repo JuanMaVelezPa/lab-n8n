@@ -89,11 +89,13 @@ From the repo root, create `.env` from the example before the first start:
 
 ```bash
 cp .env.example .env
-docker compose up -d n8n
+sed -i "s|^N8N_RUNNERS_AUTH_TOKEN=.*|N8N_RUNNERS_AUTH_TOKEN=$(openssl rand -hex 32)|" .env
+docker compose up -d n8n n8n-runners
 ```
 
 `.env` sets `COMPOSE_PROJECT_NAME=n8n`, so the data volume is always `n8n_n8n_data`, whatever the folder is called.
 Create it before the first `docker compose up`, or n8n starts on a different, empty volume once it exists.
+The `sed` line gives `N8N_RUNNERS_AUTH_TOKEN` a random value. n8n and `n8n-runners` share it, and `n8n-runners` runs the code of the Code nodes.
 `.env` is ignored by git. `TUNNEL_TOKEN` stays a placeholder until the next section.
 
 Open http://localhost:5678 and create the owner account.
@@ -155,7 +157,7 @@ docker compose up -d cloudflared
 Check: `docker logs cloudflared` shows `Registered tunnel connection`, and the tunnel shows **HEALTHY** in the dashboard.
 Opening `https://lab-n8n.jotaeme.dev` in a private window asks for an email, sends a PIN to `you@example.com`, and then shows the n8n sign-in page.
 
-The n8n service already sets `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL`, `WEBHOOK_URL`, `N8N_PROXY_HOPS` and `N8N_SECURE_COOKIE` for this hostname in `docker-compose.yml`.
+The n8n service already sets `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL`, `N8N_WEBHOOK_URL`, `N8N_PROXY_HOPS` and `N8N_SECURE_COOKIE` for this hostname in `docker-compose.yml`.
 To use another hostname, change those values, the tunnel route and the Access application together.
 
 ## 5. Create the Google OAuth client

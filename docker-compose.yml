@@ -1,6 +1,6 @@
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n
+    image: docker.n8n.io/n8nio/n8n:3.2.0
     container_name: n8n
     restart: unless-stopped
     ports:
@@ -11,11 +11,26 @@ services:
       - N8N_HOST=lab-n8n.jotaeme.dev
       - N8N_PROTOCOL=https
       - N8N_EDITOR_BASE_URL=https://lab-n8n.jotaeme.dev/
-      - WEBHOOK_URL=https://lab-n8n.jotaeme.dev/
+      - N8N_WEBHOOK_URL=https://lab-n8n.jotaeme.dev/
       - N8N_PROXY_HOPS=1
       - N8N_SECURE_COOKIE=true
+      - N8N_RUNNERS_MODE=external
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
     volumes:
       - n8n_data:/home/node/.n8n
+    networks:
+      - ia
+
+  n8n-runners:
+    image: n8nio/runners:3.2.0
+    container_name: n8n-runners
+    restart: unless-stopped
+    environment:
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+    depends_on:
+      - n8n
     networks:
       - ia
 
