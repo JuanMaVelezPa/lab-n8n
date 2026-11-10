@@ -5,16 +5,18 @@ To install it, see the [setup guide](setup.md).
 
 ## Containers
 
-Three containers run on the same host and talk over an external Docker network named `ia`.
+Four containers run on the same host and talk over an external Docker network named `ia`.
 
 | Container | Image | Started from | Port on the host | Role |
 | --- | --- | --- | --- | --- |
 | `n8n` | `docker.n8n.io/n8nio/n8n` | `docker-compose.yml` in this repo | `5678`, on `127.0.0.1` only | Runs the workflows and the editor, at `https://lab-n8n.jotaeme.dev` and at http://localhost:5678 on the server. |
+| `n8n-runners` | `n8nio/runners`, same tag as `n8n` | `docker-compose.yml` in this repo | None | Runs the code of the Code nodes. It takes each task from n8n's task broker at `http://n8n:5679`, authenticated with `N8N_RUNNERS_AUTH_TOKEN` from `.env`. |
 | `cloudflared` | `cloudflare/cloudflared:latest` | `docker-compose.yml` in this repo | None | Opens the Cloudflare Tunnel `lab-n8n` with `TUNNEL_TOKEN` from `.env` and forwards `lab-n8n.jotaeme.dev` to `http://n8n:5678`. |
 | `ollama` | `ollama/ollama` | Its own compose file, outside this repo | `11434`, on `127.0.0.1` only | Runs the language model. |
 
 n8n reaches Ollama by container name, at `http://ollama:11434`, through the `ia` network.
-`cloudflared` reaches n8n the same way, at `http://n8n:5678`.
+`cloudflared` reaches n8n the same way, at `http://n8n:5678`, and `n8n-runners` at `http://n8n:5679`.
+Port `5679` is not published on the host, so only containers on the `ia` network that have the token can take tasks.
 The network is created once with `docker network create ia` and is marked `external` in both compose files, so neither of them deletes it.
 
 ```mermaid
@@ -24,6 +26,7 @@ flowchart LR
     cfd -->|"http://n8n:5678<br>network ia"| n8n["n8n<br>container"]
     local["Browser on the server"] -->|"localhost:5678"| n8n
     vol[("n8n_data<br>volume")] --- n8n
+    runners["n8n-runners<br>container"] -->|"Code node tasks<br>n8n:5679, network ia"| n8n
     n8n -->|"POST /api/generate<br>network ia"| ollama["Ollama<br>container"]
     n8n -->|"read rows"| sheets["Google Sheets"]
     n8n -->|"read"| sources["RSS feeds<br>Evangelizo"]
@@ -40,7 +43,7 @@ n8n then asks for its own owner login, so there are two layers.
 - The tunnel is outbound from `cloudflared`, so no port is opened on the router.
 - Access covers the whole hostname, webhook paths included.
 - n8n binds to `127.0.0.1:5678`, so other devices on the LAN cannot skip Access by using the server IP.
-- `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL` and `WEBHOOK_URL` make n8n build its OAuth and webhook URLs with the public hostname.
+- `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL` and `N8N_WEBHOOK_URL` make n8n build its OAuth and webhook URLs with the public hostname.
 - `N8N_PROXY_HOPS=1` makes n8n trust the proxy headers from `cloudflared`, and `N8N_SECURE_COOKIE=true` keeps the session cookie HTTPS only.
 
 The schedules do not depend on the tunnel.

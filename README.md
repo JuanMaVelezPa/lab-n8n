@@ -24,13 +24,15 @@ flowchart LR
     cfd -->|"http://n8n:5678<br>network ia"| n8n["n8n<br>container"]
     local["Browser on the server"] -->|"localhost:5678"| n8n
     vol[("n8n_data<br>volume")] --- n8n
+    runners["n8n-runners<br>container"] -->|"Code node tasks<br>n8n:5679, network ia"| n8n
     n8n -->|"POST /api/generate<br>network ia"| ollama["Ollama<br>container"]
     n8n -->|"read rows"| sheets["Google Sheets"]
     n8n -->|"read"| sources["RSS feeds<br>Evangelizo"]
     n8n -->|"send"| gmail["Gmail"]
 ```
 
-n8n, `cloudflared` and Ollama run in three containers on the Docker network `ia`.
+n8n, `n8n-runners`, `cloudflared` and Ollama run in four containers on the Docker network `ia`.
+`n8n-runners` runs the code of the Code nodes, as tasks it takes from n8n's task broker.
 The editor is at `https://lab-n8n.jotaeme.dev`, through a Cloudflare Tunnel and behind Cloudflare Access with a one-time PIN, and at http://localhost:5678 on the server.
 Workflows and credentials live in the `n8n_data` volume, and users and settings in the Google Sheets.
 More in [docs/architecture.md](docs/architecture.md).
@@ -42,10 +44,11 @@ With Docker running, from the repo root:
 ```bash
 docker network create ia
 cp .env.example .env
-docker compose up -d n8n
+sed -i "s|^N8N_RUNNERS_AUTH_TOKEN=.*|N8N_RUNNERS_AUTH_TOKEN=$(openssl rand -hex 32)|" .env
+docker compose up -d n8n n8n-runners
 ```
 
-`.env.example` holds the Compose project name and a placeholder for the tunnel token. Copy it before the first start.
+`.env.example` holds the Compose project name and placeholders for the tunnel token and the task runner token. Copy it before the first start, and give the runner token a random value, as the `sed` line does.
 Open http://localhost:5678 and create the owner account.
 The projects also need Ollama, the Cloudflare Tunnel with Access and the Google credentials. The full path is in [docs/setup.md](docs/setup.md).
 
@@ -59,7 +62,7 @@ The projects also need Ollama, the Cloudflare Tunnel with Access and the Google 
 
 ## Repository layout
 
-- `docker-compose.yml`: the n8n and `cloudflared` containers, shared by all projects.
+- `docker-compose.yml`: the n8n, `n8n-runners` and `cloudflared` containers, shared by all projects.
 - `.env.example`: the variables `.env` needs. `.env` itself is ignored by git.
 - `docs/`: shared guides for setup, architecture and operations.
 - `projects/<name>/`: one folder per project, with its own `README.md`, `workflows/` and `sheets/` templates.
