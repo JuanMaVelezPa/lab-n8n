@@ -20,21 +20,23 @@ Each project reads its users and settings from a Google Sheet and sends the resu
 ```mermaid
 flowchart LR
     browser["Browser"] -->|"https"| access["Cloudflare Access<br>one-time PIN"]
-    access -->|"Cloudflare Tunnel"| cfd["cloudflared<br>container"]
-    cfd -->|"http://n8n:5678<br>network ia"| n8n["n8n<br>container"]
+    access -->|"Cloudflare Tunnel"| cfd["cloudflared<br>jotaeme-ingress"]
+    cfd -->|"http://n8n:5678<br>network edge"| n8n["n8n<br>container"]
     local["Browser on the server"] -->|"localhost:5678"| n8n
-    vol[("n8n_data<br>volume")] --- n8n
-    runners["n8n-runners<br>container"] -->|"Code node tasks<br>n8n:5679, network ia"| n8n
-    n8n -->|"POST /api/generate<br>network ia"| ollama["Ollama<br>container"]
+    vol[("n8n_n8n_data<br>volume")] --- n8n
+    runners["n8n-runners<br>container"] -->|"Code node tasks<br>n8n:5679, network lab-n8n_default"| n8n
+    n8n -->|"POST /api/generate<br>network llm"| ollama["Ollama<br>jotaeme-llm"]
     n8n -->|"read rows"| sheets["Google Sheets"]
     n8n -->|"read"| sources["RSS feeds<br>Evangelizo"]
     n8n -->|"send"| gmail["Gmail"]
 ```
 
-n8n, `n8n-runners`, `cloudflared` and Ollama run in four containers on the Docker network `ia`.
-`n8n-runners` runs the code of the Code nodes, as tasks it takes from n8n's task broker.
+This repo runs two containers, n8n and `n8n-runners`, in the Compose project `lab-n8n`.
+`n8n-runners` runs the code of the Code nodes, as tasks it takes from n8n's task broker on the private network `lab-n8n_default`.
+`cloudflared` comes from [jotaeme-ingress](https://github.com/JuanMaVelezPa/jotaeme-ingress) and reaches n8n on the shared network `edge`.
+Ollama comes from [jotaeme-llm](https://github.com/JuanMaVelezPa/jotaeme-llm) and n8n reaches it on the shared network `llm`.
 The editor is at `https://lab-n8n.jotaeme.dev`, through a Cloudflare Tunnel and behind Cloudflare Access with a one-time PIN, and at http://localhost:5678 on the server.
-Workflows and credentials live in the `n8n_data` volume, and users and settings in the Google Sheets.
+Workflows and credentials live in the `n8n_n8n_data` volume, and users and settings in the Google Sheets.
 More in [docs/architecture.md](docs/architecture.md).
 
 ## Quick start
@@ -42,33 +44,35 @@ More in [docs/architecture.md](docs/architecture.md).
 With Docker running, from the repo root:
 
 ```bash
-docker network create ia
+docker network create edge   # skip if jotaeme-ingress already created it
+docker network create llm    # skip if jotaeme-ingress already created it
 cp .env.example .env
 sed -i "s|^N8N_RUNNERS_AUTH_TOKEN=.*|N8N_RUNNERS_AUTH_TOKEN=$(openssl rand -hex 32)|" .env
-docker compose up -d n8n n8n-runners
+docker compose up -d
 ```
 
-`.env.example` holds the Compose project name and placeholders for the tunnel token and the task runner token. Copy it before the first start, and give the runner token a random value, as the `sed` line does.
+If `docker network create` says the network `already exists`, ignore it and go on.
+`.env.example` holds the Compose project name and a placeholder for the task runner token. Copy it before the first start, and give the runner token a random value, as the `sed` line does.
 Open http://localhost:5678 and create the owner account.
-The projects also need Ollama, the Cloudflare Tunnel with Access and the Google credentials. The full path is in [docs/setup.md](docs/setup.md).
+The projects also need Ollama from jotaeme-llm, the Cloudflare Tunnel from jotaeme-ingress with Access, and the Google credentials. The full path is in [docs/setup.md](docs/setup.md).
 
 ## Requirements
 
 - Docker with the Compose plugin.
-- An `ollama` container on the `ia` network, with `gemma4:12b` pulled. It works on CPU. A GPU makes it faster.
+- An `ollama` container on the `llm` network, with `gemma4:12b` pulled, as [jotaeme-llm](https://github.com/JuanMaVelezPa/jotaeme-llm) runs it. It works on CPU. A GPU makes it faster.
 - A Google account for Google Sheets and Gmail.
-- A Cloudflare account with the domain `jotaeme.dev` and Zero Trust on the Free plan, for the tunnel and Access.
+- For remote access, a `cloudflared` container on the `edge` network, as [jotaeme-ingress](https://github.com/JuanMaVelezPa/jotaeme-ingress) runs it, and a Cloudflare account with the domain `jotaeme.dev` and Zero Trust on the Free plan, for the tunnel and Access.
 - `jq`, only to export workflows back to the repo.
 
 ## Repository layout
 
-- `docker-compose.yml`: the n8n, `n8n-runners` and `cloudflared` containers, shared by all projects.
+- `docker-compose.yml`: the n8n and `n8n-runners` containers, shared by all projects.
 - `.env.example`: the variables `.env` needs. `.env` itself is ignored by git.
 - `docs/`: shared guides for setup, architecture and operations.
 - `projects/<name>/`: one folder per project, with its own `README.md`, `workflows/` and `sheets/` templates.
 - `specs/`: one spec per feature, numbered across all projects.
 
-Credentials are never stored here. n8n keeps them encrypted in the `n8n_data` volume.
+Credentials are never stored here. n8n keeps them encrypted in the `n8n_n8n_data` volume.
 
 ## Projects
 
@@ -85,7 +89,7 @@ It moves through the states `Draft`, `In review`, `Approved` and `Implemented`, 
 
 ## Documentation
 
-- [Setup](docs/setup.md): Docker, n8n, Ollama, the Cloudflare Tunnel with Access and the Google credentials, step by step.
+- [Setup](docs/setup.md): Docker networks, n8n, the links to Ollama and the Cloudflare Tunnel, the Access application and the Google credentials, step by step.
 - [Architecture](docs/architecture.md): containers, remote access, where state lives, and how each workflow runs.
 - [Operations](docs/operations.md): import and export workflows, backups, updates, the tunnel and troubleshooting.
 - [News digest](projects/news-digest/README.md): sheet, workflow and daily use.

@@ -5,29 +5,38 @@ To install it, see the [setup guide](setup.md).
 
 ## Containers
 
-Four containers run on the same host and talk over an external Docker network named `ia`.
+Four containers run on the same host.
+This repo starts two of them, `n8n` and `n8n-runners`, in the Compose project `lab-n8n`.
+`cloudflared` and `ollama` come from their own repos and reach n8n over shared Docker networks.
 
 | Container | Image | Started from | Port on the host | Role |
 | --- | --- | --- | --- | --- |
 | `n8n` | `docker.n8n.io/n8nio/n8n` | `docker-compose.yml` in this repo | `5678`, on `127.0.0.1` only | Runs the workflows and the editor, at `https://lab-n8n.jotaeme.dev` and at http://localhost:5678 on the server. |
 | `n8n-runners` | `n8nio/runners`, same tag as `n8n` | `docker-compose.yml` in this repo | None | Runs the code of the Code nodes. It takes each task from n8n's task broker at `http://n8n:5679`, authenticated with `N8N_RUNNERS_AUTH_TOKEN` from `.env`. |
-| `cloudflared` | `cloudflare/cloudflared:latest` | `docker-compose.yml` in this repo | None | Opens the Cloudflare Tunnel `lab-n8n` with `TUNNEL_TOKEN` from `.env` and forwards `lab-n8n.jotaeme.dev` to `http://n8n:5678`. |
-| `ollama` | `ollama/ollama` | Its own compose file, outside this repo | `11434`, on `127.0.0.1` only | Runs the language model. |
+| `cloudflared` | `cloudflare/cloudflared` | [jotaeme-ingress](https://github.com/JuanMaVelezPa/jotaeme-ingress) | None | Opens the Cloudflare Tunnel and forwards `lab-n8n.jotaeme.dev` to `http://n8n:5678`. |
+| `ollama` | `ollama/ollama` | [jotaeme-llm](https://github.com/JuanMaVelezPa/jotaeme-llm) | `11434`, on `127.0.0.1` only | Runs the language model. |
 
-n8n reaches Ollama by container name, at `http://ollama:11434`, through the `ia` network.
-`cloudflared` reaches n8n the same way, at `http://n8n:5678`, and `n8n-runners` at `http://n8n:5679`.
-Port `5679` is not published on the host, so only containers on the `ia` network that have the token can take tasks.
-The network is created once with `docker network create ia` and is marked `external` in both compose files, so neither of them deletes it.
+The containers reach each other by name over three Docker networks, each with one role:
+
+| Network | Created by | Members | Used for |
+| --- | --- | --- | --- |
+| `lab-n8n_default` | Compose, for the project `lab-n8n` | `n8n`, `n8n-runners` | `n8n-runners` takes tasks from the broker at `http://n8n:5679`. |
+| `edge` | `docker network create edge`, once on the host | `n8n`, `cloudflared` | `cloudflared` forwards requests to `http://n8n:5678`. |
+| `llm` | `docker network create llm`, once on the host | `n8n`, `ollama` | n8n calls the model at `http://ollama:11434`. |
+
+The broker port `5679` is not published on the host and is reachable only on `lab-n8n_default`, so only `n8n-runners`, with the token, can take tasks.
+`n8n-runners` is on no other network: it needs only the broker.
+`edge` and `llm` are marked `external` in every compose file that uses them, so no stack deletes them on `down`.
 
 ```mermaid
 flowchart LR
     browser["Browser"] -->|"https"| access["Cloudflare Access<br>one-time PIN"]
-    access -->|"Cloudflare Tunnel"| cfd["cloudflared<br>container"]
-    cfd -->|"http://n8n:5678<br>network ia"| n8n["n8n<br>container"]
+    access -->|"Cloudflare Tunnel"| cfd["cloudflared<br>jotaeme-ingress"]
+    cfd -->|"http://n8n:5678<br>network edge"| n8n["n8n<br>container"]
     local["Browser on the server"] -->|"localhost:5678"| n8n
-    vol[("n8n_data<br>volume")] --- n8n
-    runners["n8n-runners<br>container"] -->|"Code node tasks<br>n8n:5679, network ia"| n8n
-    n8n -->|"POST /api/generate<br>network ia"| ollama["Ollama<br>container"]
+    vol[("n8n_n8n_data<br>volume")] --- n8n
+    runners["n8n-runners<br>container"] -->|"Code node tasks<br>n8n:5679, network lab-n8n_default"| n8n
+    n8n -->|"POST /api/generate<br>network llm"| ollama["Ollama<br>jotaeme-llm"]
     n8n -->|"read rows"| sheets["Google Sheets"]
     n8n -->|"read"| sources["RSS feeds<br>Evangelizo"]
     n8n -->|"send"| gmail["Gmail"]
@@ -59,7 +68,7 @@ Schedules, `send_hour` and the dates in the emails use that time zone.
 
 | What | Where |
 | --- | --- |
-| Workflows as they run, executions, credentials (encrypted) and the encryption key | The `n8n_data` volume, mounted at `/home/node/.n8n`. |
+| Workflows as they run, executions, credentials (encrypted) and the encryption key | The `n8n_n8n_data` volume, mounted at `/home/node/.n8n`. Its name is fixed in `docker-compose.yml`, so it keeps the name from the old Compose project `n8n`. |
 | Users, topics, feeds, recipients and settings | One Google Sheet per project. |
 | The language model | The volume of the `ollama` container. |
 | Workflow definitions, sheet templates, docs and specs | This repo. |
