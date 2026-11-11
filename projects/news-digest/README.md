@@ -148,5 +148,6 @@ The change applies from the next hour. The email arrives some minutes after `sen
 | Ollama, or one summary | That article keeps its original title and text, in the language of the feed. The other articles are summarised as usual. |
 | The vocabulary call | The email has the summaries and no vocabulary box. |
 | No fresh articles for a user | That user gets no email that day. The run does not fail. |
+| A Google Sheets or Gmail call (`Config`, `Users`, `Topics`, `Feeds`, `Send Email`) | The node waits 1 minute and tries again, up to 2 times. `Send Email` re-sends only the emails that failed. If every try fails, `Retries Exhausted` stops the run with the original error. |
 
 Errors are visible in the **Executions** list of n8n.

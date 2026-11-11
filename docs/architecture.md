@@ -92,6 +92,18 @@ The request body is built in a Code node before the call:
 - The calls run one at a time, through a loop node, so Ollama handles one prompt at a time.
 - Each call has a timeout and continues on error. A failed call or an answer that is not valid JSON leaves that part out of the email, as described in each project's "When something fails" section.
 
+## How Google and feed calls are retried
+
+Short network drops to Google and to the feeds are retried before a run fails.
+The Google Sheets reads, `Sender` and the feed nodes are set to n8n's built-in retry: 5 tries, 5 s apart.
+The Google nodes (the Sheets reads, `Sender` and `Send Email`) also have a fallback loop on their error output: an If node `Retry <Node>?` and a Wait node `Wait <Node>` that run the node again after 1 minute, in up to 2 rounds.
+The wait and the number of rounds are the `retryWaitSeconds` and `retryRounds` values of the `Settings` node.
+When the rounds are used up, the `Retries Exhausted` node stops the run with the original error, so it shows in **Executions**.
+
+- The built-in retry does not fire on the Google Sheets nodes while they use the error output, because n8n 3.2.0 sees their error only on the item and not in `json.error`. Those nodes rely on the 1-minute rounds.
+- `Send Email` has no built-in retry, because it would re-send every email of the run. Its error output carries only the failed emails, so the loop re-sends only those.
+- The feed nodes keep "continue on error": a feed that still fails after its tries is left out of the email.
+
 ## News digest
 
 Six groups of nodes, the same as the sticky notes in the n8n editor, from the trigger to the sent email.

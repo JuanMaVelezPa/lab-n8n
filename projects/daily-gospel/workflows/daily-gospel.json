@@ -54,6 +54,18 @@
               "name": "gospelFeedUrl",
               "value": "https://feed.evangelizo.org/v2/reader.php",
               "type": "string"
+            },
+            {
+              "id": "settings-retry-wait-seconds",
+              "name": "retryWaitSeconds",
+              "value": 60,
+              "type": "number"
+            },
+            {
+              "id": "settings-retry-rounds",
+              "name": "retryRounds",
+              "value": 2,
+              "type": "number"
             }
           ]
         },
@@ -96,7 +108,11 @@
         "googleSheetsOAuth2Api": {
           "name": "Google Sheets account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -126,7 +142,11 @@
         "googleSheetsOAuth2Api": {
           "name": "Google Sheets account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -190,7 +210,10 @@
         1520,
         0
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
@@ -570,7 +593,11 @@
         "gmailOAuth2": {
           "name": "Gmail account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -649,7 +676,8 @@
         "gmailOAuth2": {
           "name": "Gmail account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -698,6 +726,215 @@
         832,
         -144
       ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ $prevNode.name.slice(6, -1) }}: {{ $json.error?.message ?? $json.error ?? $input.item.error?.message ?? 'Google call failed after all retries' }}"
+      },
+      "id": "retries-exhausted",
+      "name": "Retries Exhausted",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        224,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry-config",
+              "leftValue": "={{ $runIndex < $('Settings').first().json.retryRounds }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-config",
+      "name": "Retry Config?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.retryWaitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "wait-config",
+      "name": "Wait Config",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        656,
+        208
+      ],
+      "webhookId": "9aff8c26-d969-40f8-979b-c60fac13a310"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry-users",
+              "leftValue": "={{ $runIndex < $('Settings').first().json.retryRounds }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-users",
+      "name": "Retry Users?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.retryWaitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "wait-users",
+      "name": "Wait Users",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1088,
+        208
+      ],
+      "webhookId": "8abf0c08-027a-47a1-a0ac-0eb0aff3c020"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry-sender",
+              "leftValue": "={{ $runIndex < $('Settings').first().json.retryRounds }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-sender",
+      "name": "Retry Sender?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2208,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.retryWaitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "wait-sender",
+      "name": "Wait Sender",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2432,
+        848
+      ],
+      "webhookId": "5c886b0e-8eb0-43da-9c42-d66f9eff5197"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry-send-email",
+              "leftValue": "={{ $runIndex < $('Settings').first().json.retryRounds }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-send-email",
+      "name": "Retry Send Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2656,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.retryWaitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "wait-send-email",
+      "name": "Wait Send Email",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2880,
+        848
+      ],
+      "webhookId": "12a5f61b-0a9d-439e-a8d6-c93b28042a6e"
     }
   ],
   "connections": {
@@ -742,6 +979,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Retry Config?",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -761,6 +1005,13 @@
         [
           {
             "node": "Build Plan",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retry Users?",
             "type": "main",
             "index": 0
           }
@@ -1026,6 +1277,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Retry Sender?",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -1041,6 +1299,134 @@
       ]
     },
     "Can Send?": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Config?": {
+      "main": [
+        [
+          {
+            "node": "Wait Config",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retries Exhausted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Config": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Users?": {
+      "main": [
+        [
+          {
+            "node": "Wait Users",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retries Exhausted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Users": {
+      "main": [
+        [
+          {
+            "node": "Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Sender?": {
+      "main": [
+        [
+          {
+            "node": "Wait Sender",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retries Exhausted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Sender": {
+      "main": [
+        [
+          {
+            "node": "Sender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Retry Send Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Send Email?": {
+      "main": [
+        [
+          {
+            "node": "Wait Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retries Exhausted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Send Email": {
       "main": [
         [
           {
