@@ -160,5 +160,6 @@ The change applies from the next hour. The email arrives some minutes after `sen
 | The vocabulary call | The email has the reflection and no vocabulary box. |
 | The gospel feed in one language | A row with `both` gets the block of the other language. A row with only that language gets no email. |
 | The gospel feed in both languages | No email that day. Run the workflow by hand later. |
+| A Google Sheets or Gmail call (`Config`, `Users`, `Sender`, `Send Email`) | The node waits 1 minute and tries again, up to 2 times. `Sender` first retries 5 times, 5 s apart. `Send Email` re-sends only the emails that failed. If every try fails, `Retries Exhausted` stops the run with the original error. |
 
 Errors are visible in the **Executions** list of n8n.

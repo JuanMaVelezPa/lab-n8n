@@ -48,6 +48,18 @@
               "name": "ollamaUrl",
               "value": "http://ollama:11434",
               "type": "string"
+            },
+            {
+              "id": "settings-retry-wait-seconds",
+              "name": "retryWaitSeconds",
+              "value": 60,
+              "type": "number"
+            },
+            {
+              "id": "settings-retry-rounds",
+              "name": "retryRounds",
+              "value": 2,
+              "type": "number"
             }
           ]
         },
@@ -90,7 +102,11 @@
         "googleSheetsOAuth2Api": {
           "name": "Google Sheets account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -136,7 +152,11 @@
         "googleSheetsOAuth2Api": {
           "name": "Google Sheets account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -166,7 +186,11 @@
         "googleSheetsOAuth2Api": {
           "name": "Google Sheets account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -196,7 +220,11 @@
         "googleSheetsOAuth2Api": {
           "name": "Google Sheets account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -240,7 +268,10 @@
         1984,
         0
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
@@ -334,7 +365,7 @@
     {
       "parameters": {
         "content": "## 2. Read the sheet\nUsers, their topics and the list of feeds.",
-        "height": 500,
+        "height": 620,
         "width": 640,
         "color": 4
       },
@@ -572,7 +603,266 @@
         "gmailOAuth2": {
           "name": "Gmail account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ $prevNode.name.slice(6, -1) }}: {{ $json.error?.message ?? $json.error ?? $input.item.error?.message ?? 'Google call failed after all retries' }}"
+      },
+      "id": "retries-exhausted",
+      "name": "Retries Exhausted",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        224,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry-config",
+              "leftValue": "={{ $runIndex < $('Settings').first().json.retryRounds }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-config",
+      "name": "Retry Config?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.retryWaitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "wait-config",
+      "name": "Wait Config",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        656,
+        208
+      ],
+      "webhookId": "863e50c3-77a7-4eeb-8519-43e4a8ccdc1f"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry-users",
+              "leftValue": "={{ $runIndex < $('Settings').first().json.retryRounds }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-users",
+      "name": "Retry Users?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.retryWaitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "wait-users",
+      "name": "Wait Users",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        352
+      ],
+      "webhookId": "31957f5d-8153-489f-8e3c-06cdb74a59c3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry-topics",
+              "leftValue": "={{ $runIndex < $('Settings').first().json.retryRounds }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-topics",
+      "name": "Retry Topics?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1104,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.retryWaitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "wait-topics",
+      "name": "Wait Topics",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1104,
+        352
+      ],
+      "webhookId": "48d3afee-5dd6-4f13-9a88-ac7badfb0a4b"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry-feeds",
+              "leftValue": "={{ $runIndex < $('Settings').first().json.retryRounds }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-feeds",
+      "name": "Retry Feeds?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.retryWaitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "wait-feeds",
+      "name": "Wait Feeds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1328,
+        352
+      ],
+      "webhookId": "5e46d299-43d3-4a7e-91a6-1f3044e2233c"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "retry-send-email",
+              "leftValue": "={{ $runIndex < $('Settings').first().json.retryRounds }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "retry-send-email",
+      "name": "Retry Send Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2208,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.retryWaitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "wait-send-email",
+      "name": "Wait Send Email",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2432,
+        848
+      ],
+      "webhookId": "c9ac5a31-2873-41a2-a673-c61abc5402a4"
     }
   ],
   "connections": {
@@ -592,6 +882,13 @@
         [
           {
             "node": "Schedule Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retry Config?",
             "type": "main",
             "index": 0
           }
@@ -617,6 +914,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Retry Users?",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -625,6 +929,13 @@
         [
           {
             "node": "Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retry Topics?",
             "type": "main",
             "index": 0
           }
@@ -658,6 +969,13 @@
         [
           {
             "node": "Build Plan",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retry Feeds?",
             "type": "main",
             "index": 0
           }
@@ -840,6 +1158,163 @@
       ]
     },
     "Has Articles?": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Config?": {
+      "main": [
+        [
+          {
+            "node": "Wait Config",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retries Exhausted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Config": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Users?": {
+      "main": [
+        [
+          {
+            "node": "Wait Users",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retries Exhausted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Users": {
+      "main": [
+        [
+          {
+            "node": "Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Topics?": {
+      "main": [
+        [
+          {
+            "node": "Wait Topics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retries Exhausted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Topics": {
+      "main": [
+        [
+          {
+            "node": "Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Feeds?": {
+      "main": [
+        [
+          {
+            "node": "Wait Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retries Exhausted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Feeds": {
+      "main": [
+        [
+          {
+            "node": "Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Retry Send Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Send Email?": {
+      "main": [
+        [
+          {
+            "node": "Wait Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retries Exhausted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Send Email": {
       "main": [
         [
           {
