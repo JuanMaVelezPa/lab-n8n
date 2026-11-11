@@ -63,11 +63,14 @@ Check: `git diff` shows only the change you made in the editor, and `git grep -n
 
 ## Back up and restore n8n
 
-All the n8n state lives in the `n8n_data` volume: workflows, executions and the encrypted credentials.
+All the n8n state lives in the `n8n_n8n_data` volume: workflows, executions and the encrypted credentials.
 Back it up into `backups/`, which is in `.gitignore`.
 
-The commands below reach the volume through the `n8n` container, so they work whatever name Compose gave the volume.
-Compose names it `<project>_n8n_data`, where `<project>` is the folder name unless `COMPOSE_PROJECT_NAME` is set. `docker volume ls` shows it.
+The volume name is fixed to `n8n_n8n_data` in `docker-compose.yml` (`name:` under `volumes`), so it does not follow the Compose project `lab-n8n`.
+It keeps the name it got under the old project `n8n`, and Compose prints a warning on `up` that the volume was created for project `n8n`. The warning is expected and harmless.
+Never run `docker compose down -v`: `-v` deletes this volume.
+
+The commands below reach the volume through the `n8n` container, so they need it to exist. `docker volume ls` shows the volume.
 
 ### Back up
 
@@ -134,59 +137,24 @@ Both tags are always the same version. A plain `docker compose pull` does not ch
    - Restore the backup from step 2 with "Restore" above.
    - Run `docker compose up -d n8n n8n-runners`.
 
-These commands name the services, so they never pull or restart `cloudflared`.
-Update `cloudflared` on its own:
-
-```bash
-docker compose pull cloudflared
-docker compose up -d cloudflared
-```
-
-Check: `docker logs cloudflared` shows `Registered tunnel connection` again.
+`cloudflared` and Ollama are not in this compose file, so these commands never touch them.
 
 ## Cloudflare Tunnel
 
-The `cloudflared` container opens the tunnel `lab-n8n`, which publishes n8n at `https://lab-n8n.jotaeme.dev` behind Cloudflare Access.
-How it fits in the stack is in [architecture](architecture.md#remote-access), and how to create it is in the [setup guide](setup.md#cloudflare-tunnel-and-access).
-
-### Status and logs
-
-```bash
-docker compose ps cloudflared
-docker logs --tail 50 cloudflared
-```
-
-A healthy tunnel logs `Registered tunnel connection` once per connection, usually four.
-In **Zero Trust → Networks → Tunnels**, the tunnel `lab-n8n` shows **HEALTHY**.
-
-### Rotate the tunnel token
-
-Rotate it if it may have leaked, for example in a commit or a screenshot.
-
-1. In **Zero Trust → Networks → Tunnels**, open `lab-n8n` and refresh its token.
-2. Copy the new token and replace the value of `TUNNEL_TOKEN` in `.env`.
-3. Restart the container with the new value:
-
-   ```bash
-   docker compose up -d cloudflared
-   ```
-
-Check: `docker logs cloudflared` shows `Registered tunnel connection`, and the tunnel shows **HEALTHY**.
+The tunnel and its `cloudflared` container live in [jotaeme-ingress](https://github.com/JuanMaVelezPa/jotaeme-ingress), which publishes n8n at `https://lab-n8n.jotaeme.dev` behind Cloudflare Access.
+Its status, logs, updates and token rotation are in the [jotaeme-ingress operations guide](https://github.com/JuanMaVelezPa/jotaeme-ingress/blob/main/docs/operations.md), including [Rotate the tunnel token](https://github.com/JuanMaVelezPa/jotaeme-ingress/blob/main/docs/operations.md#rotate-the-tunnel-token).
+How it fits in the stack is in [architecture](architecture.md#remote-access), and the route and Access application for n8n are in the [setup guide](setup.md#cloudflare-tunnel-and-access).
 
 ### When lab-n8n.jotaeme.dev does not load
 
 Go down the list until one check fails.
 
-1. **The containers run.** `docker compose ps` shows `n8n` and `cloudflared` as `Up`.
-   A `cloudflared` that keeps restarting usually has an empty or wrong `TUNNEL_TOKEN` in `.env`. `docker logs cloudflared` says so.
-2. **The tunnel is connected.** `docker logs cloudflared` shows `Registered tunnel connection`, and the dashboard shows **HEALTHY**.
-   A Cloudflare error page `1033` in the browser means the tunnel has no connection.
-3. **The DNS record exists.** `dig +short lab-n8n.jotaeme.dev` prints Cloudflare addresses.
-   If not, check **DNS** in the `jotaeme.dev` zone for the proxied `CNAME lab-n8n` to `<tunnel id>.cfargotunnel.com`.
-4. **Access answers.** `curl -sI https://lab-n8n.jotaeme.dev` returns `302` with a `location` on `cloudflareaccess.com`.
-   If the PIN email does not arrive, check the spam folder and the email in the `Owner` policy of the Access application.
-5. **n8n answers.** `curl -s -o /dev/null -w '%{http_code}' http://localhost:5678/healthz` prints `200`.
-   A `502` page after the PIN means `cloudflared` cannot reach `http://n8n:5678`. Check that both containers are on the `ia` network with `docker network inspect ia`, and that the tunnel route points to `http://n8n:5678`.
+1. **n8n runs.** `docker compose ps` shows `n8n` and `n8n-runners` as `Up`.
+2. **n8n answers.** `curl -s -o /dev/null -w '%{http_code}' http://localhost:5678/healthz` prints `200`.
+3. **The tunnel, DNS and Access work.** Follow [When a hostname does not load](https://github.com/JuanMaVelezPa/jotaeme-ingress/blob/main/docs/operations.md#when-a-hostname-does-not-load) in jotaeme-ingress.
+   If the PIN email does not arrive, check the spam folder and the email in the `Owner` policy of the `lab-n8n` Access application.
+4. **`cloudflared` reaches n8n.** A `502` page after the PIN means `cloudflared` cannot reach `http://n8n:5678`.
+   Check that both `n8n` and `cloudflared` are on the `edge` network with `docker network inspect edge`, and that the tunnel route points to `http://n8n:5678`.
 
 While the domain is down, the workflows keep running on schedule, and the editor is still at http://localhost:5678 on the server.
 Devices on the LAN cannot use `http://<server IP>:5678`, because n8n listens only on `127.0.0.1`. They use the domain.

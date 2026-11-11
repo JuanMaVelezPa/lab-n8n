@@ -20,7 +20,9 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
     networks:
-      - ia
+      - default   # private floor: n8n-runners reaches the broker at n8n:5679
+      - edge      # lobby: cloudflared (jotaeme-ingress) reaches n8n:5678
+      - llm       # n8n calls http://ollama:11434 (jotaeme-llm)
 
   n8n-runners:
     image: n8nio/runners:3.2.0
@@ -32,23 +34,19 @@ services:
     depends_on:
       - n8n
     networks:
-      - ia
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
-    depends_on:
-      - n8n
-    networks:
-      - ia
+      - default
 
 volumes:
   n8n_data:
+    # Keeps the volume created under the old project name `n8n`.
+    # Never remove this line: without it Compose creates an empty lab-n8n_n8n_data.
+    # Compose warns that the volume was created for project "n8n"; that is expected.
+    # Never run `docker compose down -v`: it would delete this volume.
+    name: n8n_n8n_data
 
 networks:
-  ia:
+  # Created once on the host by jotaeme-ingress.
+  edge:
+    external: true
+  llm:
     external: true

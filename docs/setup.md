@@ -1,6 +1,6 @@
 # Setup
 
-The shared setup for every project in this repo: Docker, n8n, Ollama, the Cloudflare Tunnel with Access, and the Google credentials.
+The shared setup for every project in this repo: Docker, the Docker networks, Ollama, n8n, the public hostname with Access, and the Google credentials.
 Do it once, in this order. Then follow the README of each project.
 
 Commands are run from the repo root unless a step says otherwise.
@@ -16,72 +16,36 @@ docker --version
 docker compose version
 ```
 
-## 2. Create the Docker network
+## 2. Create the Docker networks
 
-n8n and Ollama talk to each other over an external Docker network named `ia`.
-Create it once:
+n8n joins two shared Docker networks, created once on the host:
+
+- `edge`: `cloudflared` from [jotaeme-ingress](https://github.com/JuanMaVelezPa/jotaeme-ingress) reaches n8n here.
+- `llm`: n8n reaches Ollama from [jotaeme-llm](https://github.com/JuanMaVelezPa/jotaeme-llm) here.
+
+If jotaeme-ingress is already installed, both exist. Otherwise create them:
 
 ```bash
-docker network create ia
+docker network create edge
+docker network create llm
 ```
 
-Check: `docker network ls` lists `ia`.
+An `already exists` error means the network is there, and can be ignored.
+The third network, `lab-n8n_default`, is created by Compose and links n8n with `n8n-runners`.
+
+Check: `docker network ls` lists `edge` and `llm`.
 
 ## 3. Start Ollama
 
-Ollama runs in its own container, named `ollama`, on the `ia` network.
-Its compose file is not part of this repo. Create it in a folder of your choice, for example `~/ollama/docker-compose.yml`:
-
-```yaml
-services:
-  ollama:
-    image: ollama/ollama
-    container_name: ollama
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - ia
-
-volumes:
-  ollama_data:
-
-networks:
-  ia:
-    external: true
-```
-
-Start it from that folder and pull the model used by the project templates:
+Ollama runs in its own container, named `ollama`, on the `llm` network.
+It lives in its own repo: follow the [jotaeme-llm Quick start](https://github.com/JuanMaVelezPa/jotaeme-llm#quick-start), which lists its own requirements, including the NVIDIA Container Toolkit for the GPU.
+The project templates use the model `gemma4:12b`:
 
 ```bash
-docker compose up -d
 docker exec ollama ollama pull gemma4:12b
 ```
 
 Check: `docker exec ollama ollama list` shows `gemma4:12b`.
-
-### GPU (optional)
-
-Ollama works on CPU. A GPU makes each call several times faster.
-For an NVIDIA GPU you need:
-
-- The NVIDIA driver on the host.
-- The NVIDIA Container Toolkit, from https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html.
-- This block under the `ollama` service, then `docker compose up -d` again:
-
-  ```yaml
-      deploy:
-        resources:
-          reservations:
-            devices:
-              - driver: nvidia
-                count: all
-                capabilities: [gpu]
-  ```
-
-Check: while a workflow is running, `docker exec ollama ollama ps` shows `GPU` in the `PROCESSOR` column.
 
 ## 4. Start n8n
 
@@ -90,18 +54,18 @@ From the repo root, create `.env` from the example before the first start:
 ```bash
 cp .env.example .env
 sed -i "s|^N8N_RUNNERS_AUTH_TOKEN=.*|N8N_RUNNERS_AUTH_TOKEN=$(openssl rand -hex 32)|" .env
-docker compose up -d n8n n8n-runners
+docker compose up -d
 ```
 
-`.env` sets `COMPOSE_PROJECT_NAME=n8n`, so the data volume is always `n8n_n8n_data`, whatever the folder is called.
-Create it before the first `docker compose up`, or n8n starts on a different, empty volume once it exists.
+`.env` sets `COMPOSE_PROJECT_NAME=lab-n8n`, so the private network is `lab-n8n_default`, whatever the folder is called.
+The data volume is still `n8n_n8n_data`, the name from the old project `n8n`, because `docker-compose.yml` fixes it with `name: n8n_n8n_data`.
 The `sed` line gives `N8N_RUNNERS_AUTH_TOKEN` a random value. n8n and `n8n-runners` share it, and `n8n-runners` runs the code of the Code nodes.
-`.env` is ignored by git. `TUNNEL_TOKEN` stays a placeholder until the next section.
+`.env` is ignored by git.
 
 Open http://localhost:5678 and create the owner account.
 n8n listens only on `127.0.0.1:5678`, so `localhost` works on the server and other devices use the domain below.
 
-Check: n8n can reach Ollama over the `ia` network.
+Check: n8n can reach Ollama over the `llm` network.
 
 ```bash
 docker exec n8n wget -qO- http://ollama:11434/api/version
@@ -112,12 +76,12 @@ It prints the Ollama version as JSON.
 ### Cloudflare Tunnel and Access
 
 n8n is published at `https://lab-n8n.jotaeme.dev` through a Cloudflare Tunnel.
-The `cloudflared` container in this repo's compose opens the tunnel, so no port is opened on the router.
+The tunnel and its `cloudflared` container live in [jotaeme-ingress](https://github.com/JuanMaVelezPa/jotaeme-ingress), which reaches n8n by name on the `edge` network, so no port is opened on the router.
 Cloudflare Access stands in front of the whole hostname and asks for a one-time PIN sent by email before anyone reaches n8n.
 n8n still asks for its own login after that.
 
+Install jotaeme-ingress first, by its own README. Then do the two parts that belong to n8n, by hand and in this order, so the hostname is never public without Access.
 You need a Cloudflare account with the `jotaeme.dev` zone, and Zero Trust enabled on the Free plan.
-The dashboard steps are done by hand, in this order, so the hostname is never public without Access.
 
 **1. Turn on the one-time PIN login.**
 In **Zero Trust → Integrations → Identity providers** (or **Settings → Authentication**), add **One-time PIN** if it is not listed.
@@ -132,29 +96,13 @@ In **Zero Trust → Access → Applications**, add an application of type **Self
 
 Check: **Access → Applications** lists `lab-n8n` with the `Owner` policy.
 
-**3. Create the tunnel.**
-In **Zero Trust → Networks → Tunnels**, create a tunnel of type **Cloudflared** named `lab-n8n`.
-On the install screen choose **Docker** and copy only the value after `--token`. Do not run the command.
-Put it in `.env` on the server:
-
-```text
-TUNNEL_TOKEN=<tunnel token>
-```
-
-The install screen waits for a connector. Leave it, open the tunnel from the list, and in **Routes** add a **Published application**:
+**3. Add the route to n8n.**
+On the jotaeme-ingress tunnel, add a published application as its [operations guide](https://github.com/JuanMaVelezPa/jotaeme-ingress/blob/main/docs/operations.md#add-a-public-hostname) describes:
 
 - **Subdomain:** `lab-n8n`, **Domain:** `jotaeme.dev`, empty path.
-- **Service URL:** `http://n8n:5678`. `cloudflared` reaches n8n by name on the `ia` network.
+- **Service URL:** `http://n8n:5678`.
 
 Check: **DNS** in the `jotaeme.dev` zone shows a proxied `CNAME lab-n8n` to `<tunnel id>.cfargotunnel.com`.
-
-**4. Start `cloudflared`.**
-
-```bash
-docker compose up -d cloudflared
-```
-
-Check: `docker logs cloudflared` shows `Registered tunnel connection`, and the tunnel shows **HEALTHY** in the dashboard.
 Opening `https://lab-n8n.jotaeme.dev` in a private window asks for an email, sends a PIN to `you@example.com`, and then shows the n8n sign-in page.
 
 The n8n service already sets `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL`, `N8N_WEBHOOK_URL`, `N8N_PROXY_HOPS` and `N8N_SECURE_COOKIE` for this hostname in `docker-compose.yml`.
@@ -206,7 +154,7 @@ The `localhost` URI stays authorized as a fallback, for when `N8N_EDITOR_BASE_UR
 
 Check: both credentials show **Account connected**.
 
-Credentials are never stored in this repo. n8n keeps them encrypted in the `n8n_data` volume.
+Credentials are never stored in this repo. n8n keeps them encrypted in the `n8n_n8n_data` volume.
 
 ## 7. Next step
 
